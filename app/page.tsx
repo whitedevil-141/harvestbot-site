@@ -104,18 +104,19 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollToSection = (e, href) => {
+  const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
+
     const element = document.querySelector(href);
-    if (element) {
-      const offsetTop = element.offsetTop - 100; // Account for fixed header
-      window.scrollTo({
-        top: offsetTop,
-        behavior: 'smooth'
-      });
-      setMobileMenuOpen(false);
-    }
+    if (!element) return;
+
+    const el = element as HTMLElement;
+    const offsetTop = el.offsetTop - 100;
+
+    window.scrollTo({ top: offsetTop, behavior: "smooth" });
+    setMobileMenuOpen(false);
   };
+
 
   const navLinks = [
     { name: 'Features', href: '#features' },
