@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import Link from "next/link";
 import { 
   Bot, 
   Zap, 
@@ -158,14 +159,20 @@ export default function App() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-2xl tracking-tighter cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-10 h-10 bg-gradient-to-br from-[#23f8ff] to-[#00d0d6] rounded-xl flex items-center justify-center shadow-lg shadow-[#23f8ff]/20 group hover:shadow-[#23f8ff]/40 transition-all duration-300">
-              <Bot className="text-slate-900 w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+          <div
+            className="flex items-center gap-3 cursor-pointer select-none"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <img
+              src={`${process.env.NODE_ENV === "production" ? "/harvestbot-site" : ""}/logo.png`}
+              alt="HarvestBot"
+              className="h-9 md:h-10 w-auto object-contain"
+            />
+            <span className="font-bold text-xl md:text-2xl tracking-tight text-white">
               Harvest<span className="text-[#23f8ff]">Bot</span>
             </span>
           </div>
+
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
@@ -180,10 +187,16 @@ export default function App() {
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#23f8ff] transition-all duration-300 group-hover:w-full"></span>
               </a>
             ))}
-            <button className="bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 px-5 py-2.5 rounded-lg font-bold transition-all hover:shadow-[0_0_25px_rgba(35,248,255,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none text-sm group">
+            <a
+              href="https://discord.com/invite/ymj4rEHpEV"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 px-5 py-2.5 rounded-lg font-bold transition-all hover:shadow-[0_0_25px_rgba(35,248,255,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none text-sm group inline-flex items-center"
+            >
               Start Farming
               <ChevronRight className="w-4 h-4 inline-block ml-1 group-hover:translate-x-1 transition-transform" />
-            </button>
+            </a>
+
           </div>
 
           {/* Mobile Menu Button */}
@@ -208,9 +221,14 @@ export default function App() {
                 {link.name}
               </a>
             ))}
-            <button className="bg-[#23f8ff] text-slate-900 px-5 py-3 rounded-lg font-bold w-full mt-2 shadow-[0_0_20px_rgba(35,248,255,0.3)]">
-              Start Farming
-            </button>
+            <a
+              href="https://discord.com/invite/ymj4rEHpEV"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[#23f8ff] text-slate-900 px-5 py-3 rounded-lg font-bold w-full mt-2 shadow-[0_0_20px_rgba(35,248,255,0.3)] inline-flex items-center justify-center"
+            >
+              Join Discord
+            </a>
           </div>
         )}
       </nav>
@@ -225,7 +243,7 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#23f8ff] opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-[#23f8ff]"></span>
                 </span>
-                Updated for Town Hall 16
+                New Release: v4.0 Available Now!
               </div>
             </FadeIn>
             
@@ -246,13 +264,24 @@ export default function App() {
             
             <FadeIn delay={300} direction="up">
               <div className="flex flex-col sm:flex-row gap-4">
-                <button className="flex items-center justify-center gap-2 bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group">
-                  Download Bot
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button className="flex items-center justify-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 text-white px-8 py-4 rounded-xl font-semibold hover:bg-slate-800 transition-all hover:-translate-y-1 hover:border-[#23f8ff]/50">
+
+                <Link
+                    href="https://example.com/download"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
+                  >
+                    Download Bot
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+
+                <a
+                  href="#features"
+                  onClick={(e) => scrollToSection(e as unknown as React.MouseEvent<HTMLAnchorElement>, "#features")}
+                  className="flex items-center justify-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 text-white px-8 py-4 rounded-xl font-semibold hover:bg-slate-800 transition-all hover:-translate-y-1 hover:border-[#23f8ff]/50"
+                >
                   View Features
-                </button>
+                </a>
               </div>
             </FadeIn>
             
@@ -529,17 +558,61 @@ export default function App() {
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { name: "Scout", price: "Free", feat: ["2 Hours/Day", "1 Account", "Basic Barch Strategy", "Standard Support"] },
-              { name: "Warlord", price: "$12", period: "/mo", feat: ["Unlimited Farming", "3 Accounts", "Advanced Strategies (Edrag/Hybrid)", "Smart Wall Upgrader", "Priority Support"], popular: true },
-              { name: "Legend", price: "$25", period: "/mo", feat: ["Unlimited Accounts", "Cloud Hosting (No PC Needed)", "Custom Scripting", "24/7 VIP Support"] }
+              {
+                name: "Weekly",
+                price: "$2",
+                period: "/ 7 Days",
+                feat: [
+                  "Full Bot Access",
+                  "Unlimited Accounts",
+                  "All Elite Strategies",
+                  "Smart Wall Upgrader",
+                  "Standard Support",
+                ],
+                link: "https://your-site.com/checkout?plan=weekly",
+              },
+              {
+                name: "Bi-Weekly",
+                price: "$5",
+                period: "/ 15 Days",
+                feat: [
+                  "Full Bot Access",
+                  "Unlimited Accounts",
+                  "All Elite Strategies",
+                  "Smart Wall Upgrader",
+                  "Priority Support",
+                ],
+                link: "https://your-site.com/checkout?plan=biweekly",
+              },
+              {
+                name: "Monthly",
+                price: "$7",
+                period: "/ 30 Days",
+                feat: [
+                  "Full Bot Access",
+                  "Unlimited Accounts",
+                  "All Elite Strategies",
+                  "Smart Wall Upgrader",
+                  "VIP Support",
+                ],
+                popular: true,
+                link: "https://your-site.com/checkout?plan=monthly",
+              },
             ].map((plan, idx) => (
-              <FadeIn key={idx} delay={idx * 150} direction="up" className={`relative h-full`}>
-                <div className={`h-full p-8 rounded-2xl flex flex-col transition-all duration-300 ${plan.popular ? 'bg-slate-900 border-2 border-[#23f8ff] shadow-[0_0_30px_rgba(35,248,255,0.15)] transform md:-translate-y-4 hover:shadow-[0_0_50px_rgba(35,248,255,0.25)]' : 'bg-slate-950 border border-slate-800 hover:bg-slate-900 hover:border-slate-700'}`}>
+              <FadeIn key={idx} delay={idx * 150} direction="up" className="relative h-full">
+                <div
+                  className={`h-full p-8 rounded-2xl flex flex-col transition-all duration-300 ${
+                    plan.popular
+                      ? "bg-slate-900 border-2 border-[#23f8ff] shadow-[0_0_30px_rgba(35,248,255,0.15)] transform md:-translate-y-4 hover:shadow-[0_0_50px_rgba(35,248,255,0.25)]"
+                      : "bg-slate-950 border border-slate-800 hover:bg-slate-900 hover:border-slate-700"
+                  }`}
+                >
                   {plan.popular && (
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#23f8ff] text-slate-900 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
                       Best Value
                     </div>
                   )}
+
                   <div className="mb-8">
                     <h3 className="text-lg font-medium text-slate-400 mb-2">{plan.name}</h3>
                     <div className="flex items-baseline gap-1">
@@ -547,25 +620,35 @@ export default function App() {
                       {plan.period && <span className="text-slate-500">{plan.period}</span>}
                     </div>
                   </div>
-                  
+
                   <ul className="space-y-4 mb-8 flex-1">
                     {plan.feat.map((f, i) => (
                       <li key={i} className="flex items-center gap-3 text-slate-300 text-sm">
-                        <CheckCircle className={`w-4 h-4 ${plan.popular ? 'text-[#23f8ff]' : 'text-slate-600'}`} />
+                        <CheckCircle className={`w-4 h-4 ${plan.popular ? "text-[#23f8ff]" : "text-slate-600"}`} />
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  <button className={`w-full py-3 rounded-lg font-bold transition-all ${plan.popular ? 'bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 shadow-lg hover:shadow-[#23f8ff]/25' : 'bg-slate-800 hover:bg-slate-700 text-white hover:shadow-lg'}`}>
+                  <a
+                    href={plan.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-full py-3 rounded-lg font-bold transition-all text-center ${
+                      plan.popular
+                        ? "bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 shadow-lg hover:shadow-[#23f8ff]/25"
+                        : "bg-slate-800 hover:bg-slate-700 text-white hover:shadow-lg"
+                    }`}
+                  >
                     Choose {plan.name}
-                  </button>
+                  </a>
                 </div>
               </FadeIn>
             ))}
           </div>
         </div>
       </section>
+
 
       {/* FOOTER */}
       <footer className="bg-slate-950 pt-20 pb-10 border-t border-slate-900">
