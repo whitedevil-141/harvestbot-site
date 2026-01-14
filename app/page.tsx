@@ -164,10 +164,11 @@ export default function App() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
             <img
-              src={`${process.env.NODE_ENV === "production" ? "/harvestbot-site" : ""}/logo.png`}
+              src="/logo.png"
               alt="HarvestBot"
               className="h-9 md:h-10 w-auto object-contain"
             />
+
             <span className="font-bold text-xl md:text-2xl tracking-tight text-white">
               Harvest<span className="text-[#23f8ff]">Bot</span>
             </span>
