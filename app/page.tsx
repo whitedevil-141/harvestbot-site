@@ -21,8 +21,8 @@ import {
 /**
  * ANIMATION HOOKS & COMPONENTS
  */
-const useOnScreen = (options) => {
-  const ref = useRef(null);
+const useOnScreen = (options?: IntersectionObserverInit) => {
+  const ref = useRef<HTMLDivElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -33,19 +33,31 @@ const useOnScreen = (options) => {
       }
     }, options);
 
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
+    if (ref.current) observer.observe(ref.current);
 
     return () => {
       if (ref.current) observer.unobserve(ref.current);
     };
   }, [options]);
 
-  return [ref, isVisible];
+  return [ref, isVisible] as const;
 };
 
-const FadeIn = ({ children, delay = 0, direction = 'up', className = "", fullWidth = false }) => {
+type FadeInProps = {
+  children: React.ReactNode;
+  delay?: number;
+  direction?: "up" | "down" | "left" | "right";
+  className?: string;
+  fullWidth?: boolean;
+};
+
+const FadeIn: React.FC<FadeInProps> = ({
+  children,
+  delay = 0,
+  direction = "up",
+  className = "",
+  fullWidth = false,
+}) => {
   const [ref, isVisible] = useOnScreen({ threshold: 0.1 });
   
   const getTransform = () => {
