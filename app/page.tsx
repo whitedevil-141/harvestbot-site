@@ -818,7 +818,7 @@ export default function App() {
           <div className="grid md:grid-cols-4 gap-12 mb-16">
             <div className="col-span-2">
               <div className="flex items-center gap-2 font-bold text-xl mb-6">
-                <div className="w-8 h-8 bg-[#6c6c6c] rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                   <img
                     src="/logo.png"
                     alt="HarvestBot"
