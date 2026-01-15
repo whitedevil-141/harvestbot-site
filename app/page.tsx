@@ -93,6 +93,98 @@ const FadeIn: React.FC<FadeInProps> = ({
  * MAIN APP COMPONENT
  */
 export default function App() {
+  // add this near your imports (you already have useState/useEffect)
+  type Vouch = {
+    id: string;
+    name: string;
+    username: string;
+    discriminator: string;
+    avatar: string;
+    text: string;
+    createdAt: string;
+  };
+
+  // put this inside App() component (near other hooks)
+  const VOUCHES_API =
+    "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
+
+  const [vouches, setVouches] = useState<Vouch[]>([]);
+  const [vouchesLoading, setVouchesLoading] = useState(true);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let alive = true;
+
+    const tick = async () => {
+      try {
+        const r = await fetch(VOUCHES_API, { cache: "no-store" });
+        const data = (await r.json()) as Vouch[];
+        if (!alive) return;
+
+        setVouches((prev) => {
+          if (prev.length === 0) return data;
+
+          const prevIds = new Set(prev.map((x) => x.id));
+          const incomingNew = data.filter((x) => !prevIds.has(x.id));
+
+          if (incomingNew.length) {
+            setNewIds((s) => {
+              const ns = new Set(s);
+              incomingNew.forEach((x) => ns.add(x.id));
+              return ns;
+            });
+
+            setTimeout(() => {
+              setNewIds((s) => {
+                const ns = new Set(s);
+                incomingNew.forEach((x) => ns.delete(x.id));
+                return ns;
+              });
+            }, 1200);
+          }
+
+          const merged = [...incomingNew, ...prev].slice(0, 30);
+          return merged;
+        });
+
+        setVouchesLoading(false);
+      } catch {
+        if (alive) setVouchesLoading(false);
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 10000); // update every 10s
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (vouches.length <= 1) return;
+    const id = window.setInterval(() => {
+      setCarouselIndex((i) => (i + 1) % vouches.length);
+    }, 4500);
+    return () => window.clearInterval(id);
+  }, [vouches.length]);
+
+  const visibleCount = 3;
+  const slideWidthPct = 100 / visibleCount;
+
+  const timeAgo = (iso: string) => {
+    const d = new Date(iso).getTime();
+    const s = Math.floor((Date.now() - d) / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  };
+
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -267,7 +359,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row gap-4">
 
                 <Link
-                    href="https://example.com/download"
+                    href="https://pub-d04dfafdd1594d6e81f5d7a7ac068c2c.r2.dev/harvest-bot/setup.exe"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
@@ -489,63 +581,132 @@ export default function App() {
 
       {/* TESTIMONIALS */}
       <section id="testimonials" className="py-24 bg-slate-900/30 relative scroll-mt-24">
+        <style>{`
+          @keyframes vouchIn {
+            0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          .animate-vouchIn { animation: vouchIn .6s ease-out both; }
+        `}</style>
+
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <FadeIn direction="up">
               <h2 className="text-3xl md:text-5xl font-bold mb-4">Chiefs Love Harvest Bot</h2>
               <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                Join thousands of satisfied players who have automated their way to max Town Hall.
+                Live vouches pulled from our Discord community.
               </p>
             </FadeIn>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                name: "KingSlayer_99",
-                role: "TH16 Legend League",
-                text: "I was skeptical about using a bot, but Harvest Bot's anti-ban features are legit. Maxed my walls in just 3 weeks without lifting a finger.",
-                rating: 5
-              },
-              {
-                name: "ClanMasterJ",
-                role: "Clan Leader",
-                text: "Managing 15 donation accounts used to be a full-time job. Now I just set it up once a week and my clan castle is always full. Game changer.",
-                rating: 5
-              },
-              {
-                name: "ElectroQueen",
-                role: "TH15 Farmer",
-                text: "The smart scheduling is my favorite feature. It looks exactly like I'm playing manually. Customer support helped me set up my custom config in minutes.",
-                rating: 5
-              }
-            ].map((review, idx) => (
-              <FadeIn key={idx} delay={idx * 150} direction="up">
-                <div className="h-full bg-slate-950 border border-slate-800 p-8 rounded-2xl hover:border-[#23f8ff]/30 transition-all duration-300 group hover:-translate-y-1 relative">
-                  <div className="absolute top-6 right-8 text-slate-800 group-hover:text-[#23f8ff]/10 transition-colors">
-                    <Quote size={48} />
-                  </div>
-                  <div className="flex gap-1 mb-6">
-                    {[...Array(review.rating)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 fill-[#23f8ff] text-[#23f8ff]" />
-                    ))}
-                  </div>
-                  <p className="text-slate-300 mb-6 leading-relaxed relative z-10">
-                    "{review.text}"
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-800 to-slate-700 border border-slate-600 flex items-center justify-center font-bold text-slate-300">
-                      {review.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white group-hover:text-[#23f8ff] transition-colors">{review.name}</h4>
-                      <p className="text-xs text-slate-500 uppercase tracking-wider">{review.role}</p>
-                    </div>
-                  </div>
+          <FadeIn direction="up">
+            <div className="relative">
+              {/* Controls */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="text-sm text-slate-400">
+                  
                 </div>
-              </FadeIn>
-            ))}
-          </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCarouselIndex((i) => (vouches.length ? (i - 1 + vouches.length) % vouches.length : 0))
+                    }
+                    className="px-3 py-2 rounded-lg border border-slate-800 bg-slate-950/70 hover:bg-slate-900 text-slate-200"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCarouselIndex((i) => (vouches.length ? (i + 1) % vouches.length : 0))
+                    }
+                    className="px-3 py-2 rounded-lg border border-slate-800 bg-slate-950/70 hover:bg-slate-900 text-slate-200"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              {/* Carousel viewport */}
+              <div className="overflow-hidden">
+                <div
+                  className="flex transition-transform duration-700 ease-out"
+                  style={{
+                    width: `${Math.max(vouches.length, visibleCount) * slideWidthPct}%`,
+                    transform: `translateX(-${carouselIndex * slideWidthPct}%)`,
+                  }}
+                >
+                  {(vouchesLoading ? Array.from({ length: 6 }) : vouches).map((v, idx) => {
+                    const isSkeleton = vouchesLoading;
+                    const key = isSkeleton ? `sk-${idx}` : (v as Vouch).id;
+                    const item = v as Vouch;
+
+                    return (
+                      <div
+                        key={key}
+                        className="px-3"
+                        style={{ flex: `0 0 ${slideWidthPct}%` }}
+                      >
+                        <div
+                          className={[
+                            "h-full rounded-2xl border border-slate-800 bg-slate-950/80 backdrop-blur p-6",
+                            "hover:border-[#23f8ff]/30 transition-all duration-300",
+                            !isSkeleton && newIds.has(item.id) ? "animate-vouchIn" : "",
+                          ].join(" ")}
+                        >
+                          <div className="absolute top-6 right-8 text-slate-800/80">
+                            <Quote size={40} />
+                          </div>
+
+                          {isSkeleton ? (
+                            <div className="animate-pulse">
+                              <div className="flex items-center gap-4 mb-4">
+                                <div className="w-11 h-11 rounded-full bg-slate-800" />
+                                <div className="flex-1">
+                                  <div className="h-3 w-32 bg-slate-800 rounded mb-2" />
+                                  <div className="h-3 w-24 bg-slate-800 rounded" />
+                                </div>
+                              </div>
+                              <div className="h-3 w-full bg-slate-800 rounded mb-2" />
+                              <div className="h-3 w-5/6 bg-slate-800 rounded mb-2" />
+                              <div className="h-3 w-3/4 bg-slate-800 rounded" />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-4 mb-4">
+                                <img
+                                  src={item.avatar}
+                                  alt={item.name}
+                                  className="w-11 h-11 rounded-full border border-slate-800 object-cover"
+                                />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-white">{item.name}</span>
+                                    <span className="text-slate-500 text-sm truncate">@{item.username}</span>
+                                    <span className="text-slate-600 text-xs">•</span>
+                                    <span className="text-slate-500 text-xs">{timeAgo(item.createdAt)} ago</span>
+                                  </div>
+                                  <div className="mt-1 inline-flex items-center rounded-full border border-slate-800 bg-slate-900/60 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                                    Discord Vouch
+                                  </div>
+                                </div>
+                              </div>
+
+                              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap break-words">
+                                {item.text}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </FadeIn>
         </div>
       </section>
 
@@ -570,7 +731,7 @@ export default function App() {
                   "Smart Wall Upgrader",
                   "Standard Support",
                 ],
-                link: "https://your-site.com/checkout?plan=weekly",
+                link: "https://discord.com/invite/ymj4rEHpEV",
               },
               {
                 name: "Bi-Weekly",
@@ -583,7 +744,7 @@ export default function App() {
                   "Smart Wall Upgrader",
                   "Priority Support",
                 ],
-                link: "https://your-site.com/checkout?plan=biweekly",
+                link: "https://discord.com/invite/ymj4rEHpEV",
               },
               {
                 name: "Monthly",
@@ -597,7 +758,7 @@ export default function App() {
                   "VIP Support",
                 ],
                 popular: true,
-                link: "https://your-site.com/checkout?plan=monthly",
+                link: "https://discord.com/invite/ymj4rEHpEV",
               },
             ].map((plan, idx) => (
               <FadeIn key={idx} delay={idx * 150} direction="up" className="relative h-full">
@@ -657,42 +818,37 @@ export default function App() {
           <div className="grid md:grid-cols-4 gap-12 mb-16">
             <div className="col-span-2">
               <div className="flex items-center gap-2 font-bold text-xl mb-6">
-                <div className="w-8 h-8 bg-[#23f8ff] rounded-lg flex items-center justify-center">
-                  <Bot className="text-slate-900 w-5 h-5" />
+                <div className="w-8 h-8 bg-[#6c6c6c] rounded-lg flex items-center justify-center">
+                  <img
+                    src="/logo.png"
+                    alt="HarvestBot"
+                    className="h-9 md:h-10 w-auto object-contain"
+                  />
                 </div>
                 <span>HarvestBot</span>
               </div>
               <p className="text-slate-500 max-w-sm">
-                The #1 Automation Tool for Clash of Clans. Helping Chiefs max their bases faster since 2023. Not affiliated with Supercell.
+                The #1 Automation Tool for Clash of Clans. Helping Chiefs max their bases faster since 2025. Not affiliated with Supercell.
               </p>
             </div>
             
             <div>
-              <h4 className="text-white font-bold mb-6">Product</h4>
+              <h4 className="text-white font-bold mb-6">Links</h4>
               <ul className="space-y-4 text-slate-500 text-sm">
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Strategies</a></li>
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Download</a></li>
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Community Configs</a></li>
+                <li><a key="features" href="#features" onClick={(e) => scrollToSection(e, "#features")} className="hover:text-[#23f8ff] transition-colors">Features</a></li>
+                <li><a href="#how-it-works" onClick={(e) => scrollToSection(e, "#how-it-works")} className="hover:text-[#23f8ff] transition-colors">How it works</a></li>
+                <li><a href="#testimonials" onClick={(e) => scrollToSection(e, "#testimonials")} className="hover:text-[#23f8ff] transition-colors">Testimonials</a></li>
+                <li><a href="#pricing" onClick={(e) => scrollToSection(e, "#pricing")} className="hover:text-[#23f8ff] transition-colors">Pricing</a></li>
               </ul>
             </div>
-
-            <div>
-              <h4 className="text-white font-bold mb-6">Legal</h4>
-              <ul className="space-y-4 text-slate-500 text-sm">
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-[#23f8ff] transition-colors">Fair Play Policy</a></li>
-              </ul>
-            </div>
+            
           </div>
           
           <div className="border-t border-slate-900 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-slate-600 text-sm">
-            <p>© 2024 Harvest Bot Inc. All rights reserved.</p>
+            <p>© <span>{new Date().getFullYear()}</span> Harvest Bot Inc. All rights reserved.</p>
             <div className="flex gap-6">
-              <a href="#" className="hover:text-[#23f8ff]">Twitter</a>
-              <a href="#" className="hover:text-[#23f8ff]">GitHub</a>
-              <a href="#" className="hover:text-[#23f8ff]">Discord</a>
+              <a href="https://www.youtube.com/@harvest-bot" className="hover:text-[#23f8ff]">Youtube</a>
+              <a href="https://discord.com/invite/ymj4rEHpEV" className="hover:text-[#23f8ff]">Discord</a>
             </div>
           </div>
         </div>
