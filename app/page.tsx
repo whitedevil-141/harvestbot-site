@@ -288,12 +288,12 @@ export default function App() {
               </a>
             ))}
             <a
-              href="https://discord.com/invite/ymj4rEHpEV"
+              // href="#dashboard"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 px-5 py-2.5 rounded-lg font-bold transition-all hover:shadow-[0_0_25px_rgba(35,248,255,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none text-sm group inline-flex items-center"
             >
-              Start Farming
+              Dashboard
               <ChevronRight className="w-4 h-4 inline-block ml-1 group-hover:translate-x-1 transition-transform" />
             </a>
 
