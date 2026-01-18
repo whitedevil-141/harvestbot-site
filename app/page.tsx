@@ -107,6 +107,13 @@ export default function App() {
   // put this inside App() component (near other hooks)
   const VOUCHES_API =
     "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
+  
+  const stats = {
+    goldValue: "3.0B",
+    elixirValue: "2.9B",
+    wallsValue: "1.5k",
+    usersValue: "10",
+  };
 
   const [vouches, setVouches] = useState<Vouch[]>([]);
   const [vouchesLoading, setVouchesLoading] = useState(true);
@@ -407,69 +414,69 @@ export default function App() {
 
               {/* Stats Grid */}
               <div className="p-6 md:p-8 grid grid-cols-2 gap-4 bg-slate-900/95 relative">
-                 {/* Decorative BG elements */}
-                 <div className="absolute top-0 right-0 w-64 h-64 bg-[#23f8ff]/5 rounded-full blur-[80px] -mr-16 -mt-16 pointer-events-none" />
-                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] -ml-16 -mb-16 pointer-events-none" />
+                {/* Decorative BG elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[#23f8ff]/5 rounded-full blur-[80px] -mr-16 -mt-16 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] -ml-16 -mb-16 pointer-events-none" />
 
-                 {/* Gold Card */}
-                 <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-yellow-500/40 transition-all group/card relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                        <div className="w-16 h-16 rounded-full bg-yellow-500 blur-xl" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Gold</span>
-                    </div>
-                    <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-yellow-400 transition-colors">
-                        842<span className="text-slate-600">.</span>5B
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono">Harvested</div>
-                 </div>
+                {/* Gold Card */}
+                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-yellow-500/40 transition-all group/card relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
+                    <div className="w-16 h-16 rounded-full bg-yellow-500 blur-xl" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Gold</span>
+                  </div>
+                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-yellow-400 transition-colors">
+                    {stats.goldValue}
+                  </div>
+                  <div className="text-xs text-slate-500 font-mono">Harvested</div>
+                </div>
 
-                 {/* Elixir Card */}
-                 <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-purple-500/40 transition-all group/card relative overflow-hidden">
-                     <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                        <div className="w-16 h-16 rounded-full bg-purple-500 blur-xl" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Elixir</span>
-                    </div>
-                    <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-purple-400 transition-colors">
-                        650<span className="text-slate-600">.</span>9B
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono">Harvested</div>
-                 </div>
+                {/* Elixir Card */}
+                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-purple-500/40 transition-all group/card relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
+                    <div className="w-16 h-16 rounded-full bg-purple-500 blur-xl" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Elixir</span>
+                  </div>
+                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-purple-400 transition-colors">
+                    {stats.elixirValue}
+                  </div>
+                  <div className="text-xs text-slate-500 font-mono">Harvested</div>
+                </div>
 
-                 {/* Walls Card */}
-                 <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-[#23f8ff]/40 transition-all group/card relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                        <div className="w-16 h-16 rounded-full bg-[#23f8ff] blur-xl" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-[#23f8ff] animate-pulse" />
-                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Walls</span>
-                    </div>
-                    <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-[#23f8ff] transition-colors">
-                        12<span className="text-slate-600">.</span>4M
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono">Upgraded</div>
-                 </div>
+                {/* Walls Card */}
+                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-[#23f8ff]/40 transition-all group/card relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
+                    <div className="w-16 h-16 rounded-full bg-[#23f8ff] blur-xl" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-[#23f8ff] animate-pulse" />
+                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Walls</span>
+                  </div>
+                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-[#23f8ff] transition-colors">
+                    {stats.wallsValue}
+                  </div>
+                  <div className="text-xs text-slate-500 font-mono">Upgraded</div>
+                </div>
 
-                 {/* Users Card */}
-                 <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-green-500/40 transition-all group/card relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                        <div className="w-16 h-16 rounded-full bg-green-500 blur-xl" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Users</span>
-                    </div>
-                    <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-green-400 transition-colors">
-                        15<span className="text-slate-600">,</span>420
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono">Active Chiefs</div>
-                 </div>
+                {/* Users Card */}
+                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-green-500/40 transition-all group/card relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
+                    <div className="w-16 h-16 rounded-full bg-green-500 blur-xl" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Users</span>
+                  </div>
+                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-green-400 transition-colors">
+                    {stats.usersValue}
+                  </div>
+                  <div className="text-xs text-slate-500 font-mono">Active Chiefs</div>
+                </div>
               </div>
             </div>
             
@@ -495,8 +502,8 @@ export default function App() {
             {[
               {
                 icon: <Sword className="w-6 h-6 text-yellow-400" />,
-                title: "Dead Base Hunter",
-                desc: "Automatically identifies abandoned bases with full collectors for maximum loot with minimal troop cost."
+                title: "Best Base Hunter",
+                desc: "Automatically identifies bases with full collectors for maximum loot with minimal troop cost."
               },
               {
                 icon: <Shield className="w-6 h-6 text-[#23f8ff]" />,
@@ -505,18 +512,18 @@ export default function App() {
               },
               {
                 icon: <Layers className="w-6 h-6 text-blue-400" />,
-                title: "Multi-Account Manager",
-                desc: "Farm on unlimited accounts simultaneously. Switch between accounts seamlessly to keep builders busy."
+                title: "Multiple Army Styles",
+                desc: "Switch between different army compositions and attack strategies to match your preferred farming style."
               },
               {
                 icon: <BarChart3 className="w-6 h-6 text-purple-400" />,
                 title: "Loot Statistics",
-                desc: "Track your gold, elixir, and dark elixir gains per hour. Analyze your best raiding times."
+                desc: "Track your gold, elixir, and dark elixir gains per hour."
               },
               {
                 icon: <Clock className="w-6 h-6 text-orange-400" />,
-                title: "Smart Scheduling",
-                desc: "Configurable breaks to simulate sleep patterns. Keeps your account online to protect resources."
+                title: "24/7 Running",
+                desc: "Runs nonstop with stable automation loops to keep farming active around the clock."
               },
               {
                 icon: <Cpu className="w-6 h-6 text-pink-400" />,
@@ -557,10 +564,10 @@ export default function App() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { title: "Install Emulator & Bot", text: "Works perfectly with Bluestacks, LDPlayer, or MEmu. One-click setup wizard included." },
-              { title: "Select Strategy", text: "Choose from Barch, Sneaky Goblins, or Electro Dragons. Or create your own custom deployment." },
+              { title: "Install Emulator & Bot", text: "Works perfectly with Bluestacks, LDPlayer. One-click setup wizard included." },
+              { title: "Select Strategy", text: "Choose from Barch, Sneaky Goblins, or Electro Dragons / Normal Dragons" },
               { title: "Set Loot Criteria", text: "Tell the bot to only attack bases with over 500k Gold/Elixir or specific Dark Elixir amounts." },
-              { title: "Start Farming", text: "Sit back and watch your storages fill up. The bot handles training, donating, and attacking." }
+              { title: "Start Farming", text: "Sit back and watch your storages fill up. The bot handles attacking, resource collection, and wall upgrades." }
             ].map((step, idx) => (
               <FadeIn key={idx} delay={idx * 150} direction="up" className="h-full">
                 <div className="h-full bg-slate-900/50 border border-slate-800 p-8 rounded-2xl hover:border-[#23f8ff]/30 transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
