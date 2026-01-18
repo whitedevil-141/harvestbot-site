@@ -221,7 +221,7 @@ export default function App() {
   const navLinks = [
     { name: 'Features', href: '#features' },
     { name: 'How it Works', href: '#how-it-works' },
-    { name: 'Testimonials', href: '#testimonials' },
+    { name: 'Feedbacks', href: '#feedbacks' },
     { name: 'Pricing', href: '#pricing' },
   ];
 
@@ -586,8 +586,8 @@ export default function App() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section id="testimonials" className="py-24 bg-slate-900/30 relative scroll-mt-24">
+      {/* FEEDBACKS */}
+      <section id="feedbacks" className="py-24 bg-slate-900/30 relative scroll-mt-24">
         <style>{`
           @keyframes vouchIn {
             0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
@@ -844,7 +844,7 @@ export default function App() {
               <ul className="space-y-4 text-slate-500 text-sm">
                 <li><a key="features" href="#features" onClick={(e) => scrollToSection(e, "#features")} className="hover:text-[#23f8ff] transition-colors">Features</a></li>
                 <li><a href="#how-it-works" onClick={(e) => scrollToSection(e, "#how-it-works")} className="hover:text-[#23f8ff] transition-colors">How it works</a></li>
-                <li><a href="#testimonials" onClick={(e) => scrollToSection(e, "#testimonials")} className="hover:text-[#23f8ff] transition-colors">Testimonials</a></li>
+                <li><a href="#feedbacks" onClick={(e) => scrollToSection(e, "#feedbacks")} className="hover:text-[#23f8ff] transition-colors">Feedbacks</a></li>
                 <li><a href="#pricing" onClick={(e) => scrollToSection(e, "#pricing")} className="hover:text-[#23f8ff] transition-colors">Pricing</a></li>
               </ul>
             </div>
