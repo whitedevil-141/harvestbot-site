@@ -2,8 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from "next/link";
 import { 
-  Bot, 
-  Zap, 
+  Bot,
+  Loader2,
+  Copy,
+  AlertCircle,
+  Info,
+  RefreshCw,
   BarChart3, 
   Clock, 
   CheckCircle, 
@@ -14,9 +18,8 @@ import {
   Shield, 
   Cpu, 
   Layers,
-  ChevronRight,
-  Star,
-  Quote
+  Send,
+  
 } from 'lucide-react';
 
 /**
@@ -103,16 +106,41 @@ export default function App() {
     text: string;
     createdAt: string;
   };
+  type Plan = {
+    name: string;
+    price: string;
+    period: string;
+    feat: string[];
+    popular?: boolean;
+  };
 
-  // put this inside App() component (near other hooks)
-  const VOUCHES_API =
-    "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
-  
+  type PaymentSession = {
+    sessionId: string;
+    orderId: string;
+    status: 'created' | 'pending' | 'paid' | 'failed' | 'expired';
+  };
+
+
+  const VOUCHES_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
+
+  const API_DOMAIN = "https://api.harvestbot.app"; 
+  // const WEBHOOK_URL = "https://api.harvestbot.app/api/v1/licenses/generate"; 
+  // const API_DOMAIN = "http://localhost:8000"; 
+  const WEBHOOK_URL = API_DOMAIN + "/api/v1/licenses/generate"; 
+
+  // Mocking flag for preview environment (set to false in production)
+  const IS_MOCK_MODE = false;
+
   const stats = {
     goldValue: "3.0B",
     elixirValue: "2.9B",
     wallsValue: "1.5k",
     usersValue: "10",
+  };
+  type ToastState = {
+    message: string;
+    type: 'success' | 'error' | 'info';
+    visible: boolean;
   };
 
   const [vouches, setVouches] = useState<Vouch[]>([]);
@@ -120,54 +148,199 @@ export default function App() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
+  // Checkout State
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [checkoutStep, setCheckoutStep] = useState<'init' | 'payment' | 'success' | 'expired'>('init');
+  const [session, setSession] = useState<PaymentSession | null>(null);
+  const [licenseKey, setLicenseKey] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+
+  
+  // -- MODERN ALERT on TOP-RIGHT ---
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type, visible: true });
+    // Auto hide after 5 seconds
+    setTimeout(() => {
+      setToast(prev => prev ? { ...prev, visible: false } : null);
+    }, 5000);
+  };
+  const copyToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      showToast("Copied to clipboard!", "success");
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+      showToast("Failed to copy.", "error");
+    }
+    document.body.removeChild(textArea);
+  };
+  // --- PAYMENT LOGIC START ---
+
+  // 1. Create Session
+  const createPaymentSession = async () => {
+    if (!selectedPlan) return;
+    setCheckoutStep('init');
+    setErrorMessage('');
+    
+    try {
+      const amount = selectedPlan.price.replace('$', '');
+      
+      let data;
+      if (IS_MOCK_MODE) {
+         // Mock API response
+         await new Promise(r => setTimeout(r, 1000)); 
+         data = { 
+           sessionId: `sess_${Math.random().toString(36).substr(2, 9)}`,
+           orderId: `ORD-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+           status: 'created'
+         };
+         showToast("Mock payment session created.", "info");
+      } else {
+        const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: amount })
+        });
+        if(!res.ok) throw new Error("Failed to create session");
+        data = await res.json();
+        showToast("Payment session created.", "info");
+      }
+
+      setSession(data);
+      setCheckoutStep('payment');
+    } catch (err: any) {
+      setErrorMessage(err.message || "Could not initialize payment.");
+    }
+  };
+
+  // 2. Poll Status
   useEffect(() => {
+    if (checkoutStep !== 'payment' || !session) return;
+
+    const pollInterval = setInterval(async () => {
+       try {
+          let status = session.status;
+          
+          if (IS_MOCK_MODE) {
+             // Mock status update: 50% chance to pay after 5 seconds in mock mode
+             // Forcing "paid" for demo purposes if user waits
+             const mockChance = Math.random();
+             if (mockChance > 0.8) status = 'paid';
+          } else {
+             const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions/${session.sessionId}`);
+             const data = await res.json();
+             status = data.status;
+          }
+
+          if (status === 'paid') {
+             clearInterval(pollInterval);
+             handlePaymentSuccess(session);
+          } else if (status === 'expired' || status === 'failed') {
+             clearInterval(pollInterval);
+             setCheckoutStep('expired');
+             showToast("Payment session expired or failed.", "error");
+          }
+       } catch (err) {
+          console.error("Polling error", err);
+       }
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
+  }, [checkoutStep, session]);
+
+  // 3. Handle Success (Webhook Call)
+  const handlePaymentSuccess = async (completedSession: PaymentSession) => {
+     try {
+        let license = "";
+
+        if (IS_MOCK_MODE) {
+          // await new Promise(r => setTimeout(r, 800));
+          // // extract amount from "/ 15 Days"
+          // const days = selectedPlan?.period.split(" ")[1] || "30";
+          // license = `MOCK-LICENSE-${days}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+          // Call the webhook / license generation endpoint
+          const days = selectedPlan?.period.split(" ")[1];
+          if (!days) throw new Error("Invalid plan period");
+          const res = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: completedSession.sessionId,
+            })
+          });
+          const data = await res.json();
+          license = data.licenseKey;
+          showToast("Mock license generated.", "success");
+        } else {
+           // Call the webhook / license generation endpoint
+           const days = selectedPlan?.period.split(" ")[1];
+           if (!days) throw new Error("Invalid plan period");
+           const res = await fetch(WEBHOOK_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: completedSession.sessionId,
+              })
+           });
+           if (!res.ok) throw new Error("Failed to generate license");
+           const data = await res.json();
+           license = data.licenseKey;
+        }
+
+        setLicenseKey(license);
+        setCheckoutStep('success');
+     } catch (err) {
+        setErrorMessage("Payment confirmed, but failed to generate license. Contact support.");
+     }
+  };
+
+  // --- PAYMENT LOGIC END ---
+
+  const closeCheckout = () => {
+    setSelectedPlan(null);
+    setCheckoutStep('init');
+    setSession(null);
+    setLicenseKey('');
+    setErrorMessage('');
+  };
+
+  // Auto-start payment when plan is selected
+  useEffect(() => {
+      if (selectedPlan && checkoutStep === 'init' && !session) {
+        createPaymentSession();
+      }
+    }, [selectedPlan]);
+
+    useEffect(() => {
     let alive = true;
 
-    const tick = async () => {
+    (async () => {
       try {
         const r = await fetch(VOUCHES_API, { cache: "no-store" });
         const data = (await r.json()) as Vouch[];
         if (!alive) return;
 
-        setVouches((prev) => {
-          if (prev.length === 0) return data;
-
-          const prevIds = new Set(prev.map((x) => x.id));
-          const incomingNew = data.filter((x) => !prevIds.has(x.id));
-
-          if (incomingNew.length) {
-            setNewIds((s) => {
-              const ns = new Set(s);
-              incomingNew.forEach((x) => ns.add(x.id));
-              return ns;
-            });
-
-            setTimeout(() => {
-              setNewIds((s) => {
-                const ns = new Set(s);
-                incomingNew.forEach((x) => ns.delete(x.id));
-                return ns;
-              });
-            }, 1200);
-          }
-
-          const merged = [...incomingNew, ...prev].slice(0, 30);
-          return merged;
-        });
-
+        setVouches(data);
         setVouchesLoading(false);
       } catch {
         if (alive) setVouchesLoading(false);
       }
-    };
+    })();
 
-    tick();
-    const id = setInterval(tick, 10000); // update every 10s
     return () => {
       alive = false;
-      clearInterval(id);
     };
   }, []);
+
 
   useEffect(() => {
     if (vouches.length <= 1) return;
@@ -250,7 +423,180 @@ export default function App() {
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#23f8ff]/10 rounded-full blur-[120px] animate-pulse-slow" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
       </div>
+      {/* GLOBAL TOAST */}
+      {toast && toast.visible && (
+        <div className={`fixed top-6 right-6 z-[120] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-right-5 fade-in duration-300 ${
+          toast.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' :
+          toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+          'bg-blue-500/10 border-blue-500/20 text-blue-400'
+        }`}>
+          {toast.type === 'success' && <CheckCircle size={20} />}
+          {toast.type === 'error' && <AlertCircle size={20} />}
+          {toast.type === 'info' && <Info size={20} />}
+          <span className="font-medium text-sm">{toast.message}</span>
+          <button onClick={() => setToast(prev => prev ? { ...prev, visible: false } : null)} className="ml-2 hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      {/* CHECKOUT MODAL */}
+      {selectedPlan && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={closeCheckout} />
+          
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900">
+              <div>
+                <h3 className="text-xl font-bold text-white">Binance Pay</h3>
+                <p className="text-sm text-slate-400">Harvest Bot - {selectedPlan.name} Plan</p>
+              </div>
+              <button onClick={closeCheckout} className="text-slate-400 hover:text-white transition-colors">
+                <X size={24} />
+              </button>
+            </div>
 
+            {/* Modal Body */}
+            <div className="p-6">
+              
+              {/* INIT STATE */}
+              {checkoutStep === 'init' && (
+                <div className="py-12 flex flex-col items-center justify-center text-center">
+                   <div className="relative">
+                     <Loader2 className="w-10 h-10 text-[#23f8ff] animate-spin" />
+                   </div>
+                   <h4 className="text-lg font-bold text-white mt-6 mb-2">Creating Payment Session</h4>
+                   <p className="text-slate-400 text-sm">Please wait...</p>
+                   {errorMessage && <p className="text-red-400 mt-4 text-sm">{errorMessage}</p>}
+                </div>
+              )}
+
+              {/* PAYMENT STATE */}
+              {checkoutStep === 'payment' && session && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-6 flex justify-between items-center">
+                     <div>
+                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Total to Pay</p>
+                        <p className="text-2xl font-bold text-[#23f8ff]">{selectedPlan.price}</p>
+                     </div>
+                     <div className="text-right">
+                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Status</p>
+                        <div className="flex items-center gap-2 justify-end">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
+                            </span>
+                            <span className="text-yellow-400 font-bold text-sm">Awaiting Payment</span>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="flex flex-col items-center justify-center mb-6">
+                    <div className="bg-white p-3 rounded-xl shadow-lg shadow-black/20">
+                      {/* Using a static QR for demo, but normally this would come from the session data */}
+                      
+                      <img 
+                        src={`qr-${selectedPlan.price.replace("$", "")}-usdt.png`} 
+                        alt="Binance Pay QR" 
+                        className="w-40 h-40 mix-blend-multiply"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-3 uppercase tracking-wider font-semibold">Scan with Binance App</p>
+                    {IS_MOCK_MODE && (
+                        <p className="text-[10px] text-green-400 mt-1 animate-pulse">(Simulating Payment... Wait 5s)</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Order ID (Reference)</label>
+                      <div className="flex gap-2">
+                        <div className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white font-mono text-base font-bold flex items-center justify-between tracking-wide">
+                           <span>{session.orderId}</span>
+                        </div>
+                        <button 
+                          onClick={() => copyToClipboard(session.orderId)}
+                          className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-lg border border-slate-700 transition-colors"
+                          title="Copy Order ID"
+                        >
+                          <Copy size={20} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        <AlertCircle size={12} className="inline mr-1" />
+                        If any issues occur, provide this Order ID to support.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUCCESS STATE */}
+              {checkoutStep === 'success' && (
+                <div className="py-6 flex flex-col items-center justify-center text-center animate-in zoom-in-95">
+                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center text-green-500 mb-6 border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
+                     <CheckCircle size={32} />
+                  </div>
+                  <h4 className="text-2xl font-bold text-white mb-2">Payment Confirmed!</h4>
+                  <p className="text-slate-400 mb-8">Here is your license key</p>
+                  
+                  <div className="w-full bg-slate-950 border border-[#23f8ff]/30 rounded-xl p-5 relative group text-left">
+                     <div className="text-xs text-[#23f8ff] font-bold uppercase tracking-wider mb-2">License Key</div>
+                     <div className="flex items-center justify-between gap-4">
+                        <code className="text-lg font-mono text-white tracking-wide break-all">{licenseKey}</code>
+                        <button 
+                          onClick={() => copyToClipboard(licenseKey)}
+                          className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-lg"
+                          title="Copy Key"
+                        >
+                          <Copy size={20} />
+                        </button>
+                     </div>
+                  </div>
+
+                  <p className="text-xs text-slate-500 mt-6">
+                    Paste this key into the bot settings to activate your {selectedPlan.name} plan.
+                  </p>
+                  
+                  <button
+                      onClick={closeCheckout}
+                      className="mt-8 bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Close Window
+                  </button>
+                </div>
+              )}
+
+              {/* EXPIRED/FAILED STATE */}
+              {checkoutStep === 'expired' && (
+                  <div className="py-12 flex flex-col items-center justify-center text-center animate-in zoom-in-95">
+                   <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mb-6 border border-red-500/20">
+                      <X size={32} />
+                   </div>
+                   <h4 className="text-lg font-bold text-white mb-2">Payment Expired</h4>
+                   <p className="text-slate-400 mb-6 max-w-xs">The session timed out or the payment could not be verified.</p>
+                   
+                   <button
+                       onClick={createPaymentSession}
+                       className="flex items-center gap-2 bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 px-6 py-3 rounded-lg font-bold transition-colors"
+                     >
+                       <RefreshCw size={18} />
+                       Try Again
+                   </button>
+                 </div>
+              )}
+            </div>
+            
+            {/* Modal Footer (Security Badge) */}
+            {(checkoutStep === 'payment' || checkoutStep === 'init') && (
+               <div className="bg-slate-950 px-6 py-3 border-t border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-500">
+                  <Shield size={12} />
+                  <span>Secured by Harvest Bot Payment System</span>
+               </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* NAVIGATION */}
       <nav 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -288,13 +634,13 @@ export default function App() {
               </a>
             ))}
             <a
-              // href="#dashboard"
+              href="https://discord.com/invite/ymj4rEHpEV"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 px-5 py-2.5 rounded-lg font-bold transition-all hover:shadow-[0_0_25px_rgba(35,248,255,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none text-sm group inline-flex items-center"
             >
-              Dashboard
-              <ChevronRight className="w-4 h-4 inline-block ml-1 group-hover:translate-x-1 transition-transform" />
+              Contact
+              <Send className="w-4 h-4 inline-block ml-1 group-hover:translate-x-1 transition-transform" />
             </a>
 
           </div>
@@ -366,7 +712,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row gap-4">
 
                 <Link
-                    href="https://pub-d04dfafdd1594d6e81f5d7a7ac068c2c.r2.dev/harvest-bot/setup.exe"
+                    href="/download/setup.exe"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
@@ -663,9 +1009,6 @@ export default function App() {
                             !isSkeleton && newIds.has(item.id) ? "animate-vouchIn" : "",
                           ].join(" ")}
                         >
-                          <div className="absolute top-6 right-8 text-slate-800/80">
-                            <Quote size={40} />
-                          </div>
 
                           {isSkeleton ? (
                             <div className="animate-pulse">
@@ -733,12 +1076,11 @@ export default function App() {
                 period: "/ 7 Days",
                 feat: [
                   "Full Bot Access",
-                  "Unlimited Accounts",
                   "All Elite Strategies",
                   "Smart Wall Upgrader",
                   "Standard Support",
                 ],
-                link: "https://discord.com/invite/ymj4rEHpEV",
+                popular: false
               },
               {
                 name: "Bi-Weekly",
@@ -746,26 +1088,23 @@ export default function App() {
                 period: "/ 15 Days",
                 feat: [
                   "Full Bot Access",
-                  "Unlimited Accounts",
                   "All Elite Strategies",
                   "Smart Wall Upgrader",
                   "Priority Support",
                 ],
-                link: "https://discord.com/invite/ymj4rEHpEV",
+                popular: false
               },
               {
                 name: "Monthly",
-                price: "$7",
+                price: "$8",
                 period: "/ 30 Days",
                 feat: [
                   "Full Bot Access",
-                  "Unlimited Accounts",
                   "All Elite Strategies",
                   "Smart Wall Upgrader",
                   "VIP Support",
                 ],
                 popular: true,
-                link: "https://discord.com/invite/ymj4rEHpEV",
               },
             ].map((plan, idx) => (
               <FadeIn key={idx} delay={idx * 150} direction="up" className="relative h-full">
@@ -793,16 +1132,14 @@ export default function App() {
                   <ul className="space-y-4 mb-8 flex-1">
                     {plan.feat.map((f, i) => (
                       <li key={i} className="flex items-center gap-3 text-slate-300 text-sm">
-                        <CheckCircle className={`w-4 h-4 ${plan.popular ? "text-[#23f8ff]" : "text-slate-600"}`} />
+                        <CheckCircle className={`w-4 h-4 ${plan.popular ? "text-[#23f8ff]" : "text-[#23f8ff]"}`} />
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  <a
-                    href={plan.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setSelectedPlan(plan)}
                     className={`w-full py-3 rounded-lg font-bold transition-all text-center ${
                       plan.popular
                         ? "bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 shadow-lg hover:shadow-[#23f8ff]/25"
@@ -810,7 +1147,7 @@ export default function App() {
                     }`}
                   >
                     Choose {plan.name}
-                  </a>
+                  </button>
                 </div>
               </FadeIn>
             ))}
