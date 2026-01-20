@@ -191,7 +191,7 @@ export default function App() {
     setErrorMessage('');
     
     try {
-      const amount = selectedPlan.price.replace('$', '');
+      const amount = Number(selectedPlan.price.replace("$", ""));
       
       let data;
       if (IS_MOCK_MODE) {
