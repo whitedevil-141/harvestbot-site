@@ -126,7 +126,7 @@ export default function App() {
   const API_DOMAIN = "https://api.harvestbot.app"; 
   // const WEBHOOK_URL = "https://api.harvestbot.app/api/v1/licenses/generate"; 
   // const API_DOMAIN = "http://localhost:8000"; 
-  const WEBHOOK_URL = API_DOMAIN + "/api/v1/licenses/generate"; 
+  const WEBHOOK_URL = `${API_DOMAIN}/api/v1/licenses/generate`;
 
   // Mocking flag for preview environment (set to false in production)
   const IS_MOCK_MODE = false;
@@ -200,7 +200,7 @@ export default function App() {
          data = { 
            sessionId: `sess_${Math.random().toString(36).substr(2, 9)}`,
            orderId: `ORD-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-           status: 'created'
+           status: 'pending'
          };
          showToast("Mock payment session created.", "info");
       } else {
@@ -235,18 +235,19 @@ export default function App() {
              const mockChance = Math.random();
              if (mockChance > 0.8) status = 'paid';
           } else {
-             const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions/${session.sessionId}`);
-             const data = await res.json();
-             status = data.status;
-          }
+              const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions/${session.sessionId}`);
+              const data = await res.json();
 
-          if (status === 'paid') {
-             clearInterval(pollInterval);
-             handlePaymentSuccess(session);
-          } else if (status === 'expired' || status === 'failed') {
-             clearInterval(pollInterval);
-             setCheckoutStep('expired');
-             showToast("Payment session expired or failed.", "error");
+              if (data.status === 'paid') {
+                clearInterval(pollInterval);
+                setSession(data);
+                handlePaymentSuccess(data);
+              } else if (data.status === 'expired' || data.status === 'failed') {
+                clearInterval(pollInterval);
+                setSession(data);
+                setCheckoutStep('expired');
+                showToast("Payment session expired or failed.", "error");
+              }
           }
        } catch (err) {
           console.error("Polling error", err);
@@ -262,14 +263,6 @@ export default function App() {
         let license = "";
 
         if (IS_MOCK_MODE) {
-          // await new Promise(r => setTimeout(r, 800));
-          // // extract amount from "/ 15 Days"
-          // const days = selectedPlan?.period.split(" ")[1] || "30";
-          // license = `MOCK-LICENSE-${days}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-          // Call the webhook / license generation endpoint
-          const days = selectedPlan?.period.split(" ")[1];
-          if (!days) throw new Error("Invalid plan period");
           const res = await fetch(WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -282,8 +275,6 @@ export default function App() {
           showToast("Mock license generated.", "success");
         } else {
            // Call the webhook / license generation endpoint
-           const days = selectedPlan?.period.split(" ")[1];
-           if (!days) throw new Error("Invalid plan period");
            const res = await fetch(WEBHOOK_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -305,12 +296,21 @@ export default function App() {
 
   // --- PAYMENT LOGIC END ---
 
-  const closeCheckout = () => {
+  const closeCheckout = async () => {
+    if (session && !IS_MOCK_MODE) {
+    const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions/${session.sessionId}/close`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("Failed to close session");
+      }
+    }
     setSelectedPlan(null);
     setCheckoutStep('init');
     setSession(null);
     setLicenseKey('');
     setErrorMessage('');
+    
   };
 
   // Auto-start payment when plan is selected
