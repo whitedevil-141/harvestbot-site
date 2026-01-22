@@ -106,6 +106,25 @@ export default function App() {
     text: string;
     createdAt: string;
   };
+
+  type GlobalStats = {
+    goldValue: string;
+    elixirValue: string;
+    wallsValue: string;
+    runTimeValue: string;
+    usersValue: string;
+  }
+  type WorkerResponse = {
+    vouches: Vouch[];
+    stats: {
+      TOTAL_GOLD: string;
+      TOTAL_ELIXER: string;
+      TOTAL_WALLS: string;
+      TOTAL_RUNTIME: string;
+      TOTAL_USER: string;
+    } | null;
+  };
+
   type Plan = {
     name: string;
     price: string;
@@ -121,7 +140,7 @@ export default function App() {
   };
 
 
-  const VOUCHES_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
+  const WORKER_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
 
   const API_DOMAIN = "https://api.harvestbot.app"; 
   // const WEBHOOK_URL = "https://api.harvestbot.app/api/v1/licenses/generate"; 
@@ -131,12 +150,6 @@ export default function App() {
   // Mocking flag for preview environment (set to false in production)
   const IS_MOCK_MODE = false;
 
-  const stats = {
-    goldValue: "3.0B",
-    elixirValue: "2.9B",
-    wallsValue: "1.5k",
-    usersValue: "10",
-  };
   type ToastState = {
     message: string;
     type: 'success' | 'error' | 'info';
@@ -144,6 +157,13 @@ export default function App() {
   };
 
   const [vouches, setVouches] = useState<Vouch[]>([]);
+  const [globalStats, setGlobalStats] = useState<GlobalStats>({
+    goldValue: "0",
+    elixirValue: "0",
+    wallsValue: "0",
+    runTimeValue: "0h-0m",
+    usersValue: "0",
+  });
   const [vouchesLoading, setVouchesLoading] = useState(true);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
@@ -325,14 +345,38 @@ export default function App() {
 
     (async () => {
       try {
-        const r = await fetch(VOUCHES_API, { cache: "no-store" });
-        const data = (await r.json()) as Vouch[];
+        const r = await fetch(WORKER_API, { cache: "no-store" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+        const data: WorkerResponse = await r.json();
         if (!alive) return;
 
-        setVouches(data);
+        const safeVouches = Array.isArray(data?.vouches) ? data.vouches : [];
+        setVouches(safeVouches);
+
+        const s = data?.stats;
+        setGlobalStats({
+          goldValue: s?.TOTAL_GOLD ?? "0",
+          elixirValue: s?.TOTAL_ELIXER ?? "0",
+          wallsValue: s?.TOTAL_WALLS ?? "0",
+          runTimeValue: s?.TOTAL_RUNTIME ?? "0h-0m",
+          usersValue: s?.TOTAL_USER ?? "0",
+        });
+
         setVouchesLoading(false);
       } catch {
-        if (alive) setVouchesLoading(false);
+        if (!alive) return;
+
+        setVouches([]);
+        setGlobalStats({
+          goldValue: "0",
+          elixirValue: "0",
+          wallsValue: "0",
+          runTimeValue: "0h-0m",
+          usersValue: "0",
+        });
+
+        setVouchesLoading(false);
       }
     })();
 
@@ -734,13 +778,13 @@ export default function App() {
             <FadeIn delay={400} direction="up">
               <div className="mt-10 flex items-center gap-4 text-sm text-slate-500">
                 <div className="flex -space-x-3">
-                  {[1,2,3,4].map(i => (
+                  {[...Array(vouches.length)].map((_, i) => (
                     <div key={i} className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-xs font-bold text-slate-300 hover:-translate-y-1 hover:z-10 transition-transform cursor-default">
-                      C{i}
+                      <img className='rounded-full' src={vouches[i]?.avatar || ""} alt={vouches[i]?.name || ""} />
                     </div>
                   ))}
                 </div>
-                <p>Used by 10,000+ Chiefs Worldwide</p>
+                <p>Used by <span className="font-mono ">{globalStats?.usersValue}</span> Chiefs Worldwide</p>
               </div>
             </FadeIn>
           </div>
@@ -774,7 +818,7 @@ export default function App() {
                     <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Gold</span>
                   </div>
                   <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-yellow-400 transition-colors">
-                    {stats.goldValue}
+                    {globalStats?.goldValue}
                   </div>
                   <div className="text-xs text-slate-500 font-mono">Harvested</div>
                 </div>
@@ -789,7 +833,7 @@ export default function App() {
                     <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Elixir</span>
                   </div>
                   <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-purple-400 transition-colors">
-                    {stats.elixirValue}
+                    {globalStats?.elixirValue}
                   </div>
                   <div className="text-xs text-slate-500 font-mono">Harvested</div>
                 </div>
@@ -804,7 +848,7 @@ export default function App() {
                     <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Walls</span>
                   </div>
                   <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-[#23f8ff] transition-colors">
-                    {stats.wallsValue}
+                    {globalStats?.wallsValue}
                   </div>
                   <div className="text-xs text-slate-500 font-mono">Upgraded</div>
                 </div>
@@ -816,12 +860,12 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Users</span>
+                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">TOTAL RUNTIME</span>
                   </div>
                   <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-green-400 transition-colors">
-                    {stats.usersValue}
+                    {globalStats?.runTimeValue}
                   </div>
-                  <div className="text-xs text-slate-500 font-mono">Active Chiefs</div>
+                  <div className="text-xs text-slate-500 font-mono"></div>
                 </div>
               </div>
             </div>
