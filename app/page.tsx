@@ -113,16 +113,6 @@ export default function App() {
     wallsValue: string;
     runTimeValue: string;
     usersValue: string;
-  }
-  type WorkerResponse = {
-    vouches: Vouch[];
-    stats: {
-      TOTAL_GOLD: string;
-      TOTAL_ELIXER: string;
-      TOTAL_WALLS: string;
-      TOTAL_RUNTIME: string;
-      TOTAL_USER: string;
-    } | null;
   };
 
   type Plan = {
@@ -340,7 +330,8 @@ export default function App() {
       }
     }, [selectedPlan]);
 
-    useEffect(() => {
+
+  useEffect(() => {
     let alive = true;
 
     (async () => {
@@ -348,34 +339,16 @@ export default function App() {
         const r = await fetch(WORKER_API, { cache: "no-store" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
 
-        const data: WorkerResponse = await r.json();
+        const data = await r.json();
         if (!alive) return;
 
         const safeVouches = Array.isArray(data?.vouches) ? data.vouches : [];
         setVouches(safeVouches);
-
-        const s = data?.stats;
-        setGlobalStats({
-          goldValue: s?.TOTAL_GOLD ?? "0",
-          elixirValue: s?.TOTAL_ELIXER ?? "0",
-          wallsValue: s?.TOTAL_WALLS ?? "0",
-          runTimeValue: s?.TOTAL_RUNTIME ?? "0h-0m",
-          usersValue: s?.TOTAL_USER ?? "0",
-        });
-
         setVouchesLoading(false);
       } catch {
         if (!alive) return;
 
         setVouches([]);
-        setGlobalStats({
-          goldValue: "0",
-          elixirValue: "0",
-          wallsValue: "0",
-          runTimeValue: "0h-0m",
-          usersValue: "0",
-        });
-
         setVouchesLoading(false);
       }
     })();
@@ -385,6 +358,36 @@ export default function App() {
     };
   }, []);
 
+  // fetch global stats
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`${API_DOMAIN}/api/v1/stats`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        data && alive && setGlobalStats({
+          goldValue: data.total_gold || "0",
+          elixirValue: data.total_elixir || "0",
+          wallsValue: data.total_walls || "0",
+          runTimeValue: data.total_runtime || "0h-0m",
+          usersValue: data.total_users || "0",
+        });
+      } catch {
+        if (!alive) return;
+        setGlobalStats({
+          goldValue: "0",
+          elixirValue: "0",
+          wallsValue: "0",
+          runTimeValue: "0h-0m",
+          usersValue: "0",
+        });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (vouches.length <= 1) return;
