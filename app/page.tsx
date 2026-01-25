@@ -369,7 +369,7 @@ export default function App() {
         data && alive && setGlobalStats({
           goldValue: data.total_gold || "0",
           elixirValue: data.total_elixir || "0",
-          wallsValue: data.total_walls || "0",
+          wallsValue: data.total_wall || "0",
           runTimeValue: data.total_runtime || "0h-0m",
           usersValue: data.total_users || "0",
         });
@@ -946,11 +946,11 @@ export default function App() {
           <div className="text-center mb-16">
             <FadeIn direction="up">
               <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Complete Control <br /> 
-                <span className="text-[#23f8ff]">Zero Coding Required</span>
+                Easy Setup <br /> 
+                <span className="text-[#23f8ff]">Start in Minutes</span>
               </h2>
               <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                Get up and running in minutes with our streamlined setup process.
+                Install the bot, pick a strategy, set your loot filters, and hit start—everything else runs automatically.
               </p>
             </FadeIn>
           </div>
