@@ -1105,18 +1105,6 @@ export default function App() {
                 popular: false
               },
               {
-                name: "Bi-Weekly",
-                price: "$5",
-                period: "/ 15 Days",
-                feat: [
-                  "Full Bot Access",
-                  "All Elite Strategies",
-                  "Smart Wall Upgrader",
-                  "Priority Support",
-                ],
-                popular: false
-              },
-              {
                 name: "Monthly",
                 price: "$8",
                 period: "/ 30 Days",
@@ -1128,6 +1116,19 @@ export default function App() {
                 ],
                 popular: true,
               },
+              {
+                name: "Bi-Weekly",
+                price: "$5",
+                period: "/ 15 Days",
+                feat: [
+                  "Full Bot Access",
+                  "All Elite Strategies",
+                  "Smart Wall Upgrader",
+                  "Priority Support",
+                ],
+                popular: false
+              }
+              
             ].map((plan, idx) => (
               <FadeIn key={idx} delay={idx * 150} direction="up" className="relative h-full">
                 <div
