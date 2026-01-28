@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import Link from "next/link";
+// Link import removed
 import { 
   Bot,
   Loader2,
@@ -19,7 +19,6 @@ import {
   Cpu, 
   Layers,
   Send,
-  
 } from 'lucide-react';
 
 /**
@@ -93,58 +92,56 @@ const FadeIn: React.FC<FadeInProps> = ({
 };
 
 /**
+ * TYPES
+ */
+type Vouch = {
+  id: string;
+  name: string;
+  username: string;
+  discriminator: string;
+  avatar: string;
+  text: string;
+  createdAt: string;
+};
+
+type GlobalStats = {
+  goldValue: string;
+  elixirValue: string;
+  wallsValue: string;
+  runTimeValue: string;
+  usersValue: string;
+};
+
+type Plan = {
+  name: string;
+  price: string;
+  period: string;
+  feat: string[];
+  popular?: boolean;
+};
+
+type PaymentSession = {
+  sessionId: string;
+  orderId: string;
+  status: 'created' | 'pending' | 'paid' | 'failed' | 'expired';
+};
+
+type ToastState = {
+  message: string;
+  type: 'success' | 'error' | 'info';
+  visible: boolean;
+};
+
+/**
  * MAIN APP COMPONENT
  */
 export default function App() {
-  // add this near your imports (you already have useState/useEffect)
-  type Vouch = {
-    id: string;
-    name: string;
-    username: string;
-    discriminator: string;
-    avatar: string;
-    text: string;
-    createdAt: string;
-  };
-
-  type GlobalStats = {
-    goldValue: string;
-    elixirValue: string;
-    wallsValue: string;
-    runTimeValue: string;
-    usersValue: string;
-  };
-
-  type Plan = {
-    name: string;
-    price: string;
-    period: string;
-    feat: string[];
-    popular?: boolean;
-  };
-
-  type PaymentSession = {
-    sessionId: string;
-    orderId: string;
-    status: 'created' | 'pending' | 'paid' | 'failed' | 'expired';
-  };
-
-
   const WORKER_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
-
   const API_DOMAIN = "https://api.harvestbot.app"; 
-  // const WEBHOOK_URL = "https://api.harvestbot.app/api/v1/licenses/generate"; 
-  // const API_DOMAIN = "http://localhost:8000"; 
   const WEBHOOK_URL = `${API_DOMAIN}/api/v1/licenses/generate`;
 
   // Mocking flag for preview environment (set to false in production)
   const IS_MOCK_MODE = false;
-
-  type ToastState = {
-    message: string;
-    type: 'success' | 'error' | 'info';
-    visible: boolean;
-  };
 
   const [vouches, setVouches] = useState<Vouch[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({
@@ -155,7 +152,6 @@ export default function App() {
     usersValue: "0",
   });
   const [vouchesLoading, setVouchesLoading] = useState(true);
-  const [carouselIndex, setCarouselIndex] = useState(0);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
   // Checkout State
@@ -167,10 +163,7 @@ export default function App() {
 
   const [toast, setToast] = useState<ToastState | null>(null);
 
-
-  
   // -- MODERN ALERT on TOP-RIGHT ---
-
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type, visible: true });
     // Auto hide after 5 seconds
@@ -178,6 +171,7 @@ export default function App() {
       setToast(prev => prev ? { ...prev, visible: false } : null);
     }, 5000);
   };
+
   const copyToClipboard = (text: string) => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
@@ -192,6 +186,7 @@ export default function App() {
     }
     document.body.removeChild(textArea);
   };
+
   // --- PAYMENT LOGIC START ---
 
   // 1. Create Session
@@ -237,30 +232,30 @@ export default function App() {
 
     const pollInterval = setInterval(async () => {
        try {
-          let status = session.status;
-          
-          if (IS_MOCK_MODE) {
+         let status = session.status;
+         
+         if (IS_MOCK_MODE) {
              // Mock status update: 50% chance to pay after 5 seconds in mock mode
              // Forcing "paid" for demo purposes if user waits
              const mockChance = Math.random();
              if (mockChance > 0.8) status = 'paid';
-          } else {
-              const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions/${session.sessionId}`);
-              const data = await res.json();
+         } else {
+             const res = await fetch(`${API_DOMAIN}/api/v1/payments/sessions/${session.sessionId}`);
+             const data = await res.json();
 
-              if (data.status === 'paid') {
-                clearInterval(pollInterval);
-                setSession(data);
-                handlePaymentSuccess(data);
-              } else if (data.status === 'expired' || data.status === 'failed') {
-                clearInterval(pollInterval);
-                setSession(data);
-                setCheckoutStep('expired');
-                showToast("Payment session expired or failed.", "error");
-              }
-          }
+             if (data.status === 'paid') {
+               clearInterval(pollInterval);
+               setSession(data);
+               handlePaymentSuccess(data);
+             } else if (data.status === 'expired' || data.status === 'failed') {
+               clearInterval(pollInterval);
+               setSession(data);
+               setCheckoutStep('expired');
+               showToast("Payment session expired or failed.", "error");
+             }
+         }
        } catch (err) {
-          console.error("Polling error", err);
+         console.error("Polling error", err);
        }
     }, 10000);
 
@@ -270,9 +265,21 @@ export default function App() {
   // 3. Handle Success (Webhook Call)
   const handlePaymentSuccess = async (completedSession: PaymentSession) => {
      try {
-        let license = "";
+       let license = "";
 
-        if (IS_MOCK_MODE) {
+       if (IS_MOCK_MODE) {
+         const res = await fetch(WEBHOOK_URL, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             sessionId: completedSession.sessionId,
+           })
+         });
+         const data = await res.json();
+         license = data.licenseKey;
+         showToast("Mock license generated.", "success");
+       } else {
+          // Call the webhook / license generation endpoint
           const res = await fetch(WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -280,27 +287,15 @@ export default function App() {
               sessionId: completedSession.sessionId,
             })
           });
+          if (!res.ok) throw new Error("Failed to generate license");
           const data = await res.json();
           license = data.licenseKey;
-          showToast("Mock license generated.", "success");
-        } else {
-           // Call the webhook / license generation endpoint
-           const res = await fetch(WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sessionId: completedSession.sessionId,
-              })
-           });
-           if (!res.ok) throw new Error("Failed to generate license");
-           const data = await res.json();
-           license = data.licenseKey;
-        }
+       }
 
-        setLicenseKey(license);
-        setCheckoutStep('success');
+       setLicenseKey(license);
+       setCheckoutStep('success');
      } catch (err) {
-        setErrorMessage("Payment confirmed, but failed to generate license. Contact support.");
+       setErrorMessage("Payment confirmed, but failed to generate license. Contact support.");
      }
   };
 
@@ -369,7 +364,7 @@ export default function App() {
         data && alive && setGlobalStats({
           goldValue: data.total_gold || "0",
           elixirValue: data.total_elixir || "0",
-          wallsValue: data.total_wall || "0",
+          wallsValue: data.total_walls || "0",
           runTimeValue: data.total_runtime || "0h-0m",
           usersValue: data.total_users || "0",
         });
@@ -388,17 +383,6 @@ export default function App() {
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (vouches.length <= 1) return;
-    const id = window.setInterval(() => {
-      setCarouselIndex((i) => (i + 1) % vouches.length);
-    }, 4500);
-    return () => window.clearInterval(id);
-  }, [vouches.length]);
-
-  const visibleCount = 3;
-  const slideWidthPct = 100 / visibleCount;
 
   const timeAgo = (iso: string) => {
     const d = new Date(iso).getTime();
@@ -460,9 +444,20 @@ export default function App() {
           0%, 100% { opacity: 0.3; transform: scale(1); }
           50% { opacity: 0.15; transform: scale(1.1); }
         }
+        @keyframes scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
         .animate-float { animation: float 6s ease-in-out infinite; }
         .animate-float-delayed { animation: float-delayed 7s ease-in-out infinite 2s; }
         .animate-pulse-slow { animation: pulse-slow 8s ease-in-out infinite; }
+        .animate-scroll {
+          animation: scroll 60s linear infinite;
+          width: max-content;
+        }
+        .animate-scroll:hover {
+          animation-play-state: paused;
+        }
       `}</style>
       
       {/* BACKGROUND ELEMENTS */}
@@ -470,6 +465,7 @@ export default function App() {
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#23f8ff]/10 rounded-full blur-[120px] animate-pulse-slow" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
       </div>
+
       {/* GLOBAL TOAST */}
       {toast && toast.visible && (
         <div className={`fixed top-6 right-6 z-[120] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-right-5 fade-in duration-300 ${
@@ -486,6 +482,7 @@ export default function App() {
           </button>
         </div>
       )}
+
       {/* CHECKOUT MODAL */}
       {selectedPlan && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -529,11 +526,11 @@ export default function App() {
                      <div className="text-right">
                         <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Status</p>
                         <div className="flex items-center gap-2 justify-end">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
-                            </span>
-                            <span className="text-yellow-400 font-bold text-sm">Awaiting Payment</span>
+                           <span className="relative flex h-2 w-2">
+                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                             <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
+                           </span>
+                           <span className="text-yellow-400 font-bold text-sm">Awaiting Payment</span>
                         </div>
                      </div>
                   </div>
@@ -541,7 +538,6 @@ export default function App() {
                   <div className="flex flex-col items-center justify-center mb-6">
                     <div className="bg-white p-3 rounded-xl shadow-lg shadow-black/20">
                       {/* Using a static QR for demo, but normally this would come from the session data */}
-                      
                       <img 
                         src={`qr-${selectedPlan.price.replace("$", "")}-usdt.png`} 
                         alt="Binance Pay QR" 
@@ -590,14 +586,14 @@ export default function App() {
                   <div className="w-full bg-slate-950 border border-[#23f8ff]/30 rounded-xl p-5 relative group text-left">
                      <div className="text-xs text-[#23f8ff] font-bold uppercase tracking-wider mb-2">License Key</div>
                      <div className="flex items-center justify-between gap-4">
-                        <code className="text-lg font-mono text-white tracking-wide break-all">{licenseKey}</code>
-                        <button 
-                          onClick={() => copyToClipboard(licenseKey)}
-                          className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-lg"
-                          title="Copy Key"
-                        >
-                          <Copy size={20} />
-                        </button>
+                       <code className="text-lg font-mono text-white tracking-wide break-all">{licenseKey}</code>
+                       <button 
+                         onClick={() => copyToClipboard(licenseKey)}
+                         className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-lg"
+                         title="Copy Key"
+                       >
+                         <Copy size={20} />
+                       </button>
                      </div>
                   </div>
 
@@ -644,6 +640,7 @@ export default function App() {
           </div>
         </div>
       )}
+
       {/* NAVIGATION */}
       <nav 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -665,7 +662,6 @@ export default function App() {
               Harvest<span className="text-[#23f8ff]">Bot</span>
             </span>
           </div>
-
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
@@ -758,7 +754,7 @@ export default function App() {
             <FadeIn delay={300} direction="up">
               <div className="flex flex-col sm:flex-row gap-4">
 
-                <Link
+                <a
                     href="/download/setup.exe"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -766,7 +762,7 @@ export default function App() {
                   >
                     Download Bot
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Link>
+                </a>
 
                 <a
                   href="#features"
@@ -946,11 +942,11 @@ export default function App() {
           <div className="text-center mb-16">
             <FadeIn direction="up">
               <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Easy Setup <br /> 
-                <span className="text-[#23f8ff]">Start in Minutes</span>
+                Complete Control <br /> 
+                <span className="text-[#23f8ff]">Zero Coding Required</span>
               </h2>
               <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                Install the bot, pick a strategy, set your loot filters, and hit start—everything else runs automatically.
+                Get up and running in minutes with our streamlined setup process.
               </p>
             </FadeIn>
           </div>
@@ -980,7 +976,7 @@ export default function App() {
       </section>
 
       {/* FEEDBACKS */}
-      <section id="feedbacks" className="py-24 bg-slate-900/30 relative scroll-mt-24">
+      <section id="feedbacks" className="py-24 bg-slate-900/30 relative scroll-mt-24 overflow-hidden">
         <style>{`
           @keyframes vouchIn {
             0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
@@ -989,8 +985,8 @@ export default function App() {
           .animate-vouchIn { animation: vouchIn .6s ease-out both; }
         `}</style>
 
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
+        <div className="max-w-7xl mx-auto px-6 mb-16">
+          <div className="text-center">
             <FadeIn direction="up">
               <h2 className="text-3xl md:text-5xl font-bold mb-4">Chiefs Love Harvest Bot</h2>
               <p className="text-slate-400 max-w-2xl mx-auto text-lg">
@@ -998,56 +994,35 @@ export default function App() {
               </p>
             </FadeIn>
           </div>
+        </div>
 
-          <FadeIn direction="up">
-            <div className="relative">
-              {/* Controls */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="text-sm text-slate-400">
-                  
-                </div>
+        {/* Infinite Scroll Container */}
+        <div className="max-w-7xl mx-auto px-6">
+        <div className="relative w-full overflow-hidden mask-linear-gradient"
+        style={{
+              WebkitMaskImage:
+                "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)",
+              maskImage:
+                "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)",
+            }}> 
+           {/* Fade masks on edges */}
+           <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none"></div>
+           <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none"></div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCarouselIndex((i) => (vouches.length ? (i - 1 + vouches.length) % vouches.length : 0))
-                    }
-                    className="px-3 py-2 rounded-lg border border-slate-800 bg-slate-950/70 hover:bg-slate-900 text-slate-200"
-                  >
-                    Prev
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCarouselIndex((i) => (vouches.length ? (i + 1) % vouches.length : 0))
-                    }
-                    className="px-3 py-2 rounded-lg border border-slate-800 bg-slate-950/70 hover:bg-slate-900 text-slate-200"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-
-              {/* Carousel viewport */}
-              <div className="overflow-hidden">
-                <div
-                  className="flex transition-transform duration-700 ease-out"
-                  style={{
-                    width: `${Math.max(vouches.length, visibleCount) * slideWidthPct}%`,
-                    transform: `translateX(-${carouselIndex * slideWidthPct}%)`,
-                  }}
-                >
+            <div className="flex animate-scroll">
+              {/* Render items twice for infinite loop */}
+              {[...Array(2)].map((_, listIdx) => (
+                <div key={listIdx} className="flex gap-6 px-3"> 
                   {(vouchesLoading ? Array.from({ length: 6 }) : vouches).map((v, idx) => {
                     const isSkeleton = vouchesLoading;
-                    const key = isSkeleton ? `sk-${idx}` : (v as Vouch).id;
+                    // Need unique keys across the two lists
+                    const key = isSkeleton ? `sk-${listIdx}-${idx}` : `vouch-${listIdx}-${(v as Vouch).id}`;
                     const item = v as Vouch;
 
                     return (
                       <div
                         key={key}
-                        className="px-3"
-                        style={{ flex: `0 0 ${slideWidthPct}%` }}
+                        className="w-[350px] md:w-[450px] flex-shrink-0"
                       >
                         <div
                           className={[
@@ -1101,9 +1076,9 @@ export default function App() {
                     );
                   })}
                 </div>
-              </div>
+              ))}
             </div>
-          </FadeIn>
+        </div>
         </div>
       </section>
 
