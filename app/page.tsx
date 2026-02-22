@@ -364,7 +364,7 @@ export default function App() {
         data && alive && setGlobalStats({
           goldValue: data.total_gold || "0",
           elixirValue: data.total_elixir || "0",
-          wallsValue: data.total_walls || "0",
+          wallsValue: data.total_wall || "0",
           runTimeValue: data.total_runtime || "0h-0m",
           usersValue: data.total_users || "0",
         });
