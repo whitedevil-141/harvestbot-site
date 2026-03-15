@@ -154,6 +154,14 @@ export default function App() {
   const [vouchesLoading, setVouchesLoading] = useState(true);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
+  const DEFAULT_GLOBAL_STATS: GlobalStats = {
+    goldValue: "0",
+    elixirValue: "0",
+    wallsValue: "0",
+    runTimeValue: "0h-0m",
+    usersValue: "0",
+  };
+
   // Checkout State
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'init' | 'payment' | 'success' | 'expired'>('init');
@@ -353,34 +361,51 @@ export default function App() {
     };
   }, []);
 
-  // fetch global stats
+  // Fetch global stats with retries on cold-start and periodic refresh.
   useEffect(() => {
     let alive = true;
-    (async () => {
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const normalizeStats = (data: any): GlobalStats => ({
+      goldValue: String(data?.total_gold ?? DEFAULT_GLOBAL_STATS.goldValue),
+      elixirValue: String(data?.total_elixir ?? DEFAULT_GLOBAL_STATS.elixirValue),
+      wallsValue: String(data?.total_wall ?? DEFAULT_GLOBAL_STATS.wallsValue),
+      runTimeValue: String(data?.total_runtime ?? DEFAULT_GLOBAL_STATS.runTimeValue),
+      usersValue: String(data?.total_users ?? DEFAULT_GLOBAL_STATS.usersValue),
+    });
+
+    const fetchStats = async (attempt = 0) => {
       try {
-        const r = await fetch(`${API_DOMAIN}/api/v1/stats`);
+        const r = await fetch(`${API_DOMAIN}/api/v1/stats`, { cache: "no-store" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
         const data = await r.json();
-        data && alive && setGlobalStats({
-          goldValue: data.total_gold || "0",
-          elixirValue: data.total_elixir || "0",
-          wallsValue: data.total_wall || "0",
-          runTimeValue: data.total_runtime || "0h-0m",
-          usersValue: data.total_users || "0",
-        });
+        if (!alive) return;
+
+        setGlobalStats(normalizeStats(data));
       } catch {
         if (!alive) return;
-        setGlobalStats({
-          goldValue: "0",
-          elixirValue: "0",
-          wallsValue: "0",
-          runTimeValue: "0h-0m",
-          usersValue: "0",
-        });
+
+        // Retry a few times in case API is warming up on first run.
+        if (attempt < 4) {
+          const delayMs = Math.min(1000 * 2 ** attempt, 10000);
+          retryTimeout = setTimeout(() => {
+            fetchStats(attempt + 1);
+          }, delayMs);
+        }
       }
-    })();
+    };
+
+    fetchStats();
+
+    const refreshInterval = setInterval(() => {
+      fetchStats();
+    }, 60000);
+
     return () => {
       alive = false;
+      clearInterval(refreshInterval);
+      if (retryTimeout) clearTimeout(retryTimeout);
     };
   }, []);
 
