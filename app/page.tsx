@@ -148,7 +148,7 @@ export default function App() {
     goldValue: "0",
     elixirValue: "0",
     wallsValue: "0",
-    runTimeValue: "0h-0m",
+    runTimeValue: "0h",
     usersValue: "0",
   });
   const [vouchesLoading, setVouchesLoading] = useState(true);
@@ -158,7 +158,7 @@ export default function App() {
     goldValue: "0",
     elixirValue: "0",
     wallsValue: "0",
-    runTimeValue: "0h-0m",
+    runTimeValue: "0h",
     usersValue: "0",
   };
 
