@@ -36,7 +36,7 @@ const BINANCE_PAY_ID = "770585563";
 const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
 const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
 const DISCORD_LOGIN_URL = "https://api.harvestbot.app/api/auth/discord/login";
-const DISCORD_CALLBACK_URL = "https://api.harvestbot.app/api/verify/auth/discord/callback";
+const DISCORD_CALLBACK_URL = "https://api.harvestbot.app/api/auth/discord/callback";
 const PAYMENT_WEBHOOK_URL = "https://api.harvestbot.app/api/payment/webhook";
 
 const PLAN_OPTIONS: PlanOption[] = [
