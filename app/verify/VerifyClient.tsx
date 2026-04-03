@@ -35,8 +35,9 @@ type VerifyState = {
 const BINANCE_PAY_ID = "770585563";
 const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
 const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
-const DISCORD_LOGIN_URL = "http://127.0.0.1/api/auth/discord/login";
-const DISCORD_CALLBACK_URL = "http://127.0.0.1/api/auth/discord/callback";
+const DISCORD_LOGIN_URL = "https://harvestbot.app/verify/auth/discord/login";
+const DISCORD_CALLBACK_URL = "https://harvestbot.app/verify/auth/discord/callback";
+const PAYMENT_WEBHOOK_URL = "https://harvestbot.app/verify/payment/webhook";
 
 const PLAN_OPTIONS: PlanOption[] = [
   {
@@ -466,13 +467,34 @@ export default function VerifyClient() {
         data.detail.toLowerCase().includes("already verified");
 
       if (isSuccess || alreadyVerified) {
+        const webhookRes = await fetch(PAYMENT_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ discord_id: storedDiscordId }),
+        });
+
+        if (!webhookRes.ok) {
+          const webhookData = await webhookRes.json().catch(() => ({}));
+          setVerifyState({
+            status: "error",
+            message:
+              webhookData?.detail ||
+              "Payment verified, but role assignment failed. Contact support.",
+          });
+          return;
+        }
+
+        const webhookData = await webhookRes.json().catch(() => ({}));
+        const roleStatus = webhookData?.status ? String(webhookData.status) : "";
+        const baseMessage =
+          data?.message ||
+          (alreadyVerified
+            ? "Transaction already verified. Your access is active."
+            : "Payment verified. Access is being delivered.");
+
         setVerifyState({
           status: "success",
-          message:
-            data?.message ||
-            (alreadyVerified
-              ? "Transaction already verified. Your access is active."
-              : "Payment verified. Access is being delivered."),
+          message: roleStatus ? `${baseMessage} ${roleStatus}.` : baseMessage,
           key: data?.key ? String(data.key) : undefined,
           alreadyVerified,
         });
