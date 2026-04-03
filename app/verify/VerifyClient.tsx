@@ -8,6 +8,7 @@ import {
   Copy,
   ShieldCheck,
   Sparkles,
+  UserRound,
   Wallet,
 } from "lucide-react";
 
@@ -34,11 +35,13 @@ type VerifyState = {
 const BINANCE_PAY_ID = "770585563";
 const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
 const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
+const DISCORD_LOGIN_URL = "http://127.0.0.1/api/auth/discord/login";
+const DISCORD_CALLBACK_URL = "http://127.0.0.1/api/auth/discord/callback";
 
 const PLAN_OPTIONS: PlanOption[] = [
   {
     id: "7d",
-    label: "7 Days",
+    label: "Weekly",
     days: 7,
     price: 2,
     tagline: "Quick boost for builder cycles",
@@ -46,7 +49,7 @@ const PLAN_OPTIONS: PlanOption[] = [
   },
   {
     id: "15d",
-    label: "15 Days",
+    label: "Bi-Weekly",
     days: 15,
     price: 5,
     tagline: "Solid grind window",
@@ -54,7 +57,7 @@ const PLAN_OPTIONS: PlanOption[] = [
   },
   {
     id: "30d",
-    label: "30 Days",
+    label: "Monthly",
     days: 30,
     price: 8,
     tagline: "Best for long farms",
@@ -73,6 +76,64 @@ const PLAN_OPTIONS: PlanOption[] = [
 const formatUsd = (amount: number) => `$${amount}`;
 
 const normalizeQuery = (value?: string | null) => value?.trim().toLowerCase() ?? "";
+
+const getStoredDiscordId = () =>
+  typeof window !== "undefined" ? localStorage.getItem("discord_id") : null;
+
+const getStoredDiscordName = () =>
+  typeof window !== "undefined" ? localStorage.getItem("discord_name") : null;
+
+const getStoredDiscordAvatar = () =>
+  typeof window !== "undefined" ? localStorage.getItem("discord_avatar") : null;
+
+const resolveDiscordRedirectUri = () => {
+  if (typeof window === "undefined") return "";
+  const configured = process.env.NEXT_PUBLIC_DISCORD_REDIRECT_URI;
+  if (configured && configured.trim()) return configured.trim();
+  if (window.location.hostname === "localhost") {
+    return "https://harvestbot.app/verify";
+  }
+  return `${window.location.origin}/verify`;
+};
+
+const getCleanReturnUrl = () => {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  url.searchParams.delete("code");
+  url.searchParams.delete("discord_id");
+  url.searchParams.delete("state");
+  return url.toString();
+};
+
+const resolveReturnUrl = () => {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  const stateParam = params.get("state");
+  if (stateParam) {
+    try {
+      const stateUrl = new URL(stateParam, window.location.origin);
+      if (stateUrl.origin === window.location.origin) {
+        const hasPlan = stateUrl.searchParams.has("plan");
+        const hasAmount = stateUrl.searchParams.has("amount");
+        if (hasPlan || hasAmount) return stateUrl.toString();
+      }
+    } catch {
+      // Ignore invalid state values.
+    }
+  }
+
+  const sessionValue = sessionStorage.getItem("discord_return_url");
+  if (sessionValue) {
+    try {
+      const sessionUrl = new URL(sessionValue, window.location.origin);
+      if (sessionUrl.origin === window.location.origin) return sessionUrl.toString();
+    } catch {
+      // Ignore invalid session values.
+    }
+  }
+
+  return getCleanReturnUrl();
+};
 
 const getNumeric = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -117,6 +178,9 @@ export default function VerifyClient() {
   const [selectedPlanId, setSelectedPlanId] = useState(PLAN_OPTIONS[0].id);
   const [method, setMethod] = useState<MethodId>("binance_pay");
   const [coin, setCoin] = useState<Coin>("USDT");
+  const [discordId, setDiscordId] = useState<string | null>(null);
+  const [discordName, setDiscordName] = useState<string | null>(null);
+  const [discordAvatar, setDiscordAvatar] = useState<string | null>(null);
   const [orderId, setOrderId] = useState("");
   const [redeemCode, setRedeemCode] = useState("");
   const [txId, setTxId] = useState("");
@@ -127,6 +191,38 @@ export default function VerifyClient() {
 
   const selectedPlan =
     PLAN_OPTIONS.find((plan) => plan.id === selectedPlanId) ?? PLAN_OPTIONS[0];
+  const discordAvatarUrl =
+    discordId && discordAvatar
+      ? `https://cdn.discordapp.com/avatars/${discordId}/${discordAvatar}.png?size=96`
+      : null;
+  const discordInitial = discordName?.trim().charAt(0).toUpperCase() ?? "D";
+  const isDiscordLinked = Boolean(discordId);
+  const buildReturnUrl = () => {
+    if (typeof window === "undefined") return "";
+    const baseUrl = getCleanReturnUrl();
+    let url: URL;
+
+    try {
+      url = new URL(baseUrl || `${window.location.origin}/verify`);
+    } catch {
+      url = new URL(`${window.location.origin}/verify`);
+    }
+
+    if (!url.searchParams.has("plan")) {
+      url.searchParams.set("plan", selectedPlan.label);
+    }
+    if (!url.searchParams.has("amount")) {
+      url.searchParams.set("amount", String(selectedPlan.price));
+    }
+
+    return url.toString();
+  };
+
+  useEffect(() => {
+    setDiscordId(getStoredDiscordId());
+    setDiscordName(getStoredDiscordName());
+    setDiscordAvatar(getStoredDiscordAvatar());
+  }, []);
 
   useEffect(() => {
     const planParam = normalizeQuery(searchParams.get("plan"));
@@ -140,6 +236,81 @@ export default function VerifyClient() {
     });
 
     if (matched) setSelectedPlanId(matched.id);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const discordParam = searchParams.get("discord_id");
+    if (discordParam) {
+      const storedId = getStoredDiscordId();
+      if (storedId && storedId !== discordParam) {
+        localStorage.removeItem("discord_name");
+        localStorage.removeItem("discord_avatar");
+        setDiscordName(null);
+        setDiscordAvatar(null);
+      }
+
+      localStorage.setItem("discord_id", discordParam);
+      setDiscordId(discordParam);
+      const returnUrl = resolveReturnUrl();
+      sessionStorage.removeItem("discord_return_url");
+      window.history.replaceState({}, document.title, returnUrl || window.location.pathname);
+      return;
+    }
+
+    const codeParam = searchParams.get("code");
+    if (!codeParam) return;
+
+    const redirectUri = resolveDiscordRedirectUri();
+    if (!redirectUri) return;
+    const callbackUrl = new URL(DISCORD_CALLBACK_URL);
+    callbackUrl.searchParams.set("code", codeParam);
+    callbackUrl.searchParams.set("redirect_uri", redirectUri);
+    callbackUrl.searchParams.set("return_url", resolveReturnUrl());
+
+    let active = true;
+
+    fetch(callbackUrl.toString())
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const receivedId = data?.discord_id ? String(data.discord_id) : "";
+        if (receivedId) {
+          localStorage.setItem("discord_id", receivedId);
+          setDiscordId(receivedId);
+
+          const receivedName = data?.name ? String(data.name) : "";
+          const receivedAvatar = data?.avatar ? String(data.avatar) : "";
+
+          if (receivedName) {
+            localStorage.setItem("discord_name", receivedName);
+            setDiscordName(receivedName);
+          } else {
+            localStorage.removeItem("discord_name");
+            setDiscordName(null);
+          }
+
+          if (receivedAvatar) {
+            localStorage.setItem("discord_avatar", receivedAvatar);
+            setDiscordAvatar(receivedAvatar);
+          } else {
+            localStorage.removeItem("discord_avatar");
+            setDiscordAvatar(null);
+          }
+        }
+        const returnUrl = resolveReturnUrl();
+        sessionStorage.removeItem("discord_return_url");
+        window.history.replaceState({}, document.title, returnUrl || window.location.pathname);
+      })
+      .catch(() => {
+        if (!active) return;
+        const returnUrl = resolveReturnUrl();
+        sessionStorage.removeItem("discord_return_url");
+        window.history.replaceState({}, document.title, returnUrl || window.location.pathname);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [searchParams]);
 
   useEffect(() => {
@@ -201,10 +372,48 @@ export default function VerifyClient() {
     }
   };
 
+  const startDiscordLogin = async () => {
+    const redirectUri = resolveDiscordRedirectUri();
+    if (!redirectUri) return;
+    const loginUrl = new URL(DISCORD_LOGIN_URL);
+    const returnUrl = buildReturnUrl();
+    if (!returnUrl) return;
+
+    sessionStorage.setItem("discord_return_url", returnUrl);
+
+    try {
+      const res = await fetch(loginUrl.toString());
+      const data = await res.json().catch(() => ({}));
+      const target = typeof data?.url === "string" ? data.url.trim() : "";
+      if (!target) return;
+      const authUrl = new URL(target);
+      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("state", returnUrl);
+      window.location.href = authUrl.toString();
+    } catch {
+      // Ignore login errors for now.
+    }
+  };
+
+  const handleDiscordLogout = () => {
+    localStorage.removeItem("discord_id");
+    localStorage.removeItem("discord_name");
+    localStorage.removeItem("discord_avatar");
+    setDiscordId(null);
+    setDiscordName(null);
+    setDiscordAvatar(null);
+  };
+
   const handleVerify = async () => {
+    const storedDiscordId = discordId ?? getStoredDiscordId();
+    if (!storedDiscordId) {
+      alert("Connect Discord before payment");
+      return;
+    }
+
     setVerifyState({ status: "loading" });
 
-    let payload: Record<string, string> = {};
+    let payload: Record<string, string> = { discord_id: storedDiscordId };
 
     if (method === "binance_pay") {
       if (!orderId.trim()) {
@@ -214,7 +423,7 @@ export default function VerifyClient() {
         });
         return;
       }
-      payload = { order_id: orderId.trim() };
+      payload.order_id = orderId.trim();
     } else if (method === "gift_card") {
       if (!redeemCode.trim()) {
         setVerifyState({
@@ -223,7 +432,7 @@ export default function VerifyClient() {
         });
         return;
       }
-      payload = { redeem_code: redeemCode.trim() };
+      payload.redeem_code = redeemCode.trim();
     } else {
       if (!txId.trim()) {
         setVerifyState({
@@ -232,7 +441,8 @@ export default function VerifyClient() {
         });
         return;
       }
-      payload = { coin, tx_id: txId.trim() };
+      payload.coin = coin;
+      payload.tx_id = txId.trim();
     }
 
     try {
@@ -294,6 +504,12 @@ export default function VerifyClient() {
     }
     return `${formatUsd(selectedPlan.price)} USD`;
   })();
+  const isVerifyDisabled = verifyState.status === "loading" || !isDiscordLinked;
+  const verifyButtonLabel = !isDiscordLinked
+    ? "Connect Discord to continue"
+    : verifyState.status === "loading"
+      ? "Verifying..."
+      : "Verify payment";
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-[#23f8ff] selection:text-slate-900">
@@ -362,7 +578,7 @@ export default function VerifyClient() {
                 <ShieldCheck className="h-5 w-5 text-[#23f8ff]" />
                 <div>
                   <p className="text-sm font-semibold">Secure verification</p>
-                  <p className="text-xs text-slate-500">No account details required</p>
+                  <p className="text-xs text-slate-500">Your information is encrypted and secure</p>
                 </div>
               </div>
             </div>
@@ -603,7 +819,72 @@ export default function VerifyClient() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm uppercase tracking-wide text-[#23f8ff] font-semibold">
-                      Step 3 - Verify
+                      Step 3 - Connect Discord
+                    </p>
+                    <h2 className="text-2xl font-semibold">Discord access</h2>
+                  </div>
+                  <UserRound className="h-5 w-5 text-[#23f8ff]" />
+                </div>
+                <p className="mt-3 text-sm text-slate-400">
+                  Link your Discord so we can deliver roles and verification updates.
+                </p>
+                <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {discordId ? (
+                        <div className="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-200">
+                          {discordAvatarUrl ? (
+                            <img
+                              src={discordAvatarUrl}
+                              alt="Discord avatar"
+                              className="h-8 w-8 rounded-full border border-slate-700 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-[11px] font-semibold uppercase text-slate-300">
+                              {discordInitial}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                              Connected
+                            </p>
+                            <p className="text-sm font-semibold">
+                              {discordName ?? "Discord connected"}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400">No Discord linked yet.</p>
+                      )}
+                    </div>
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      {!discordId && (
+                        <button
+                          type="button"
+                          onClick={startDiscordLogin}
+                          className="rounded-full bg-[#23f8ff] px-4 py-2 text-xs font-semibold text-slate-900 shadow-[0_0_18px_rgba(35,248,255,0.35)] transition hover:bg-[#1ac2c7]"
+                        >
+                          Connect Discord
+                        </button>
+                      )}
+                      {discordId && (
+                        <button
+                          type="button"
+                          onClick={handleDiscordLogout}
+                          className="rounded-full border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-400 transition hover:border-red-400/60 hover:text-red-200"
+                        >
+                          Log out
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/70 px-5 py-5 shadow-lg shadow-black/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm uppercase tracking-wide text-[#23f8ff] font-semibold">
+                      Step 4 - Verify
                     </p>
                     <h2 className="text-2xl font-semibold">Payment summary</h2>
                   </div>
@@ -699,13 +980,19 @@ export default function VerifyClient() {
                     </div>
                   )}
 
+                  {/* {!isDiscordLinked && (
+                    <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
+                      Connect Discord to unlock payment verification.
+                    </div>
+                  )} */}
+
                   <button
                     type="button"
                     onClick={handleVerify}
-                    disabled={verifyState.status === "loading"}
+                    disabled={isVerifyDisabled}
                     className="w-full rounded-xl bg-[#23f8ff] px-4 py-2.5 text-sm font-semibold text-slate-900 transition-all hover:bg-[#1ac2c7] hover:shadow-[0_0_20px_rgba(35,248,255,0.35)] disabled:cursor-not-allowed disabled:bg-[#23f8ff]/60"
                   >
-                    {verifyState.status === "loading" ? "Verifying..." : "Verify payment"}
+                    {verifyButtonLabel}
                   </button>
 
                   {verifyState.status !== "idle" && verifyState.message && (
