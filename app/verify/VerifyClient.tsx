@@ -534,12 +534,13 @@ export default function VerifyClient() {
     }
     return `${formatUsd(selectedPlan.price)} USD`;
   })();
-  const isVerifyDisabled = verifyState.status === "loading" || !isDiscordLinked;
+  const isVerifyDisabled = isDiscordLinked && verifyState.status === "loading";
   const verifyButtonLabel = !isDiscordLinked
     ? "Connect Discord to continue"
     : verifyState.status === "loading"
       ? "Verifying..."
       : "Verify payment";
+  const handlePrimaryAction = isDiscordLinked ? handleVerify : startDiscordLogin;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-[#23f8ff] selection:text-slate-900">
@@ -1018,7 +1019,7 @@ export default function VerifyClient() {
 
                   <button
                     type="button"
-                    onClick={handleVerify}
+                    onClick={handlePrimaryAction}
                     disabled={isVerifyDisabled}
                     className="w-full rounded-xl bg-[#23f8ff] px-4 py-2.5 text-sm font-semibold text-slate-900 transition-all hover:bg-[#1ac2c7] hover:shadow-[0_0_20px_rgba(35,248,255,0.35)] disabled:cursor-not-allowed disabled:bg-[#23f8ff]/60"
                   >

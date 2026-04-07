@@ -443,11 +443,11 @@ export default function App() {
       </nav>
 
       {/* HERO SECTION */}
-      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 px-6 z-10 overflow-hidden">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+      <section className="relative pt-28 pb-16 md:pt-48 md:pb-32 px-4 sm:px-6 z-10 overflow-hidden">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 md:gap-12 items-center">
           <div>
             <FadeIn direction="right">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#23f8ff]/10 border border-[#23f8ff]/20 text-[#23f8ff] text-xs font-semibold uppercase tracking-wider mb-6 hover:bg-[#23f8ff]/20 transition-colors cursor-default">
+              <div className="inline-flex w-fit max-w-full items-center gap-2 px-3 py-1 rounded-full bg-[#23f8ff]/10 border border-[#23f8ff]/20 text-[#23f8ff] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mb-5 sm:mb-6 hover:bg-[#23f8ff]/20 transition-colors cursor-default whitespace-normal sm:whitespace-nowrap">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#23f8ff] opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-[#23f8ff]"></span>
@@ -457,7 +457,7 @@ export default function App() {
             </FadeIn>
             
             <FadeIn delay={100} direction="right">
-              <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-6 tracking-tight">
+              <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.08] mb-5 sm:mb-6 tracking-tight">
                 Max Your Base <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#23f8ff] via-[#00d0d6] to-purple-500">
                   While You Sleep
@@ -466,19 +466,19 @@ export default function App() {
             </FadeIn>
             
             <FadeIn delay={200} direction="right">
-              <p className="text-lg text-slate-400 mb-8 max-w-xl leading-relaxed">
+              <p className="text-base sm:text-lg text-slate-400 mb-7 sm:mb-8 max-w-xl leading-relaxed">
                 The ultimate Clash of Clans automation tool. Auto-farm millions of resources, keep your walls upgrading, and never miss a builder cycle again.
               </p>
             </FadeIn>
             
             <FadeIn delay={300} direction="up">
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
 
                 <a
                     href="/download/setup.exe"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
+                    className="flex w-full sm:w-auto items-center justify-center gap-2 bg-white text-slate-950 px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-bold text-base sm:text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
                   >
                     Download Bot
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -487,7 +487,7 @@ export default function App() {
                 <a
                   href="#features"
                   onClick={(e) => scrollToSection(e as unknown as React.MouseEvent<HTMLAnchorElement>, "#features")}
-                  className="flex items-center justify-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 text-white px-8 py-4 rounded-xl font-semibold hover:bg-slate-800 transition-all hover:-translate-y-1 hover:border-[#23f8ff]/50"
+                  className="flex w-full sm:w-auto items-center justify-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-semibold hover:bg-slate-800 transition-all hover:-translate-y-1 hover:border-[#23f8ff]/50"
                 >
                   View Features
                 </a>
@@ -495,15 +495,20 @@ export default function App() {
             </FadeIn>
             
             <FadeIn delay={400} direction="up">
-              <div className="mt-10 flex items-center gap-4 text-sm text-slate-500">
-                <div className="flex -space-x-3">
-                  {[...Array(vouches.length)].map((_, i) => (
-                    <div key={i} className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-xs font-bold text-slate-300 hover:-translate-y-1 hover:z-10 transition-transform cursor-default">
-                      <img className='rounded-full' src={vouches[i]?.avatar || ""} alt={vouches[i]?.name || ""} />
+              <div className="mt-8 sm:mt-10 flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-slate-500">
+                <div className="flex -space-x-3 overflow-hidden">
+                  {vouches.slice(0, 6).map((vouch, i) => (
+                    <div key={vouch.id || i} className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-xs font-bold text-slate-300 hover:-translate-y-1 hover:z-10 transition-transform cursor-default">
+                      <img className='rounded-full w-full h-full object-cover' src={vouch.avatar || ""} alt={vouch.name || ""} />
                     </div>
                   ))}
+                  {vouches.length > 6 && (
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-[10px] font-bold text-slate-300">
+                      +{vouches.length - 6}
+                    </div>
+                  )}
                 </div>
-                <p>Used by <span className="font-mono ">{globalStats?.usersValue}</span> Chiefs Worldwide</p>
+                <p className="leading-tight">Used by <span className="font-mono ">{globalStats?.usersValue}</span> Chiefs Worldwide</p>
               </div>
             </FadeIn>
           </div>
