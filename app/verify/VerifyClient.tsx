@@ -30,6 +30,7 @@ type VerifyState = {
   message?: string;
   key?: string;
   alreadyVerified?: boolean;
+  isExistingUser?: boolean;
 };
 
 const BINANCE_PAY_ID = "770585563";
@@ -188,6 +189,7 @@ export default function VerifyClient() {
   const [orderId, setOrderId] = useState("");
   const [redeemCode, setRedeemCode] = useState("");
   const [txId, setTxId] = useState("");
+  const [existingUsername, setExistingUsername] = useState("");
   const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [ltcQuote, setLtcQuote] = useState<string | null>(null);
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -422,7 +424,13 @@ export default function VerifyClient() {
 
     setVerifyState({ status: "loading" });
 
+    const trimmedExistingUsername = existingUsername.trim();
+    const isExistingUser = Boolean(trimmedExistingUsername);
     let payload: Record<string, string> = { discord_id: storedDiscordId };
+
+    if (trimmedExistingUsername) {
+      payload.existing_username = trimmedExistingUsername;
+    }
 
     if (method === "binance_pay") {
       if (!orderId.trim()) {
@@ -494,17 +502,22 @@ export default function VerifyClient() {
 
         const webhookData = await webhookRes.json().catch(() => ({}));
         const roleStatus = webhookData?.status ? String(webhookData.status) : "";
-        const baseMessage =
-          data?.message ||
-          (alreadyVerified
+        const baseMessage = isExistingUser
+          ? "Extension applied. Your access has been extended."
+          : alreadyVerified
             ? "Transaction already verified. Your access is active."
-            : "Payment verified. Access is being delivered.");
+            : "Payment verified. Access is being delivered.";
 
         setVerifyState({
           status: "success",
-          message: roleStatus ? `${baseMessage} ${roleStatus}.` : baseMessage,
-          key: data?.key ? String(data.key) : undefined,
+          message: isExistingUser
+            ? baseMessage
+            : roleStatus
+              ? `${baseMessage} ${roleStatus}.`
+              : baseMessage,
+          key: isExistingUser ? undefined : data?.key ? String(data.key) : undefined,
           alreadyVerified,
+          isExistingUser,
         });
         return;
       }
@@ -959,10 +972,23 @@ export default function VerifyClient() {
               <div className="rounded-3xl border border-slate-800 bg-slate-900/70 px-5 py-5 shadow-lg shadow-black/20">
                 <h3 className="text-lg font-semibold">Verification details</h3>
                 <p className="mt-2 text-sm text-slate-400">
-                  Submit exactly one field based on your payment method.
+                  Submit the payment details properly to ensure smooth and quick verification.
                 </p>
 
                 <div className="mt-4 space-y-3.5">
+                  <div>
+                    <label className="text-sm font-semibold" htmlFor="existing-username">
+                      Existing username (optional)
+                    </label>
+                    <input
+                      id="existing-username"
+                      type="text"
+                      value={existingUsername}
+                      onChange={(event) => setExistingUsername(event.target.value)}
+                      placeholder="Harvest Bot username to extend"
+                      className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-[#23f8ff] focus:ring-1 focus:ring-[#23f8ff]/40"
+                    />
+                  </div>
                   {method === "binance_pay" && (
                     <div>
                       <label className="text-sm font-semibold" htmlFor="order-id">
@@ -1038,7 +1064,9 @@ export default function VerifyClient() {
                     </div>
                   )}
 
-                  {verifyState.status === "success" && verifyState.key && (
+                  {verifyState.status === "success" &&
+                    !verifyState.isExistingUser &&
+                    verifyState.key && (
                     <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-2.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         License key
@@ -1052,6 +1080,40 @@ export default function VerifyClient() {
                         <Copy className="h-3.5 w-3.5" />
                         {copiedTarget === "key" ? "Copied" : "Copy key"}
                       </button>
+                    </div>
+                  )}
+
+                  {verifyState.status === "success" && !verifyState.isExistingUser && (
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Setup guide
+                      </p>
+                      <ol className="mt-2 list-decimal pl-5 space-y-1.5 text-sm text-slate-300">
+                        <li>
+                          Download the bot from the home page or{" "}
+                          <a
+                            href="https://harvestbot.app/download/setup.exe"
+                            className="text-[#23f8ff] hover:underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            https://harvestbot.app/download/setup.exe
+                          </a>
+                          .
+                        </li>
+                        <li>
+                          Follow the setup tutorial in Discord:{" "}
+                          <a
+                            href="https://discord.com/channels/1436624981038727281/1475260520386007070"
+                            className="text-[#23f8ff] hover:underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            setup-tutorial channel
+                          </a>
+                          .
+                        </li>
+                      </ol>
                     </div>
                   )}
                 </div>
