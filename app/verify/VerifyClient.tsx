@@ -426,7 +426,7 @@ export default function VerifyClient() {
 
     const trimmedExistingUsername = existingUsername.trim();
     const isExistingUser = Boolean(trimmedExistingUsername);
-    let payload: Record<string, string> = { discord_id: storedDiscordId };
+    let payload: Record<string, string> = {};
 
     if (trimmedExistingUsername) {
       payload.existing_username = trimmedExistingUsername;
