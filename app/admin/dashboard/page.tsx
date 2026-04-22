@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import Image from 'next/image';
 import { 
   LayoutDashboard, 
@@ -34,7 +34,7 @@ type Payment = {
   network: string;
 };
 
-type ChartPeriod = '1M' | '3M' | '6M' | '1Y';
+type ChartPeriod = 'week' | '1m' | '1yr' | 'lifetime';
 type NavId = 'Overview' | 'Transactions';
 type PlanId = 'Weekly' | 'Bi-Weekly' | 'Monthly' | 'Lifetime';
 
@@ -72,7 +72,9 @@ const normalizeKey = (value: string) => value.toLowerCase().replace(/\s+/g, '');
 // Custom SVG Area Chart
 const CustomAreaChart = ({ data, period }: { data: Payment[]; period: ChartPeriod }) => {
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
+  const [hoverCardSize, setHoverCardSize] = React.useState({ width: 0, height: 0 });
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const hoverCardRef = React.useRef<HTMLDivElement>(null);
   
   const chartData = useMemo(() => {
     // Amount to plan mapping
@@ -82,49 +84,115 @@ const CustomAreaChart = ({ data, period }: { data: Payment[]; period: ChartPerio
       8: 'Monthly',
       35: 'Lifetime',
     };
+    const seriesData: Record<string, { value: number; plans: Record<PlanId, { count: number; total: number }>; totalSales: number }> = {};
 
-    const monthlyData: Record<string, { value: number; plans: Record<PlanId, { count: number; total: number }>; totalSales: number }> = {};
+    const now = new Date();
+    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    // Build data structure with plan details
-    data.forEach((tx) => {
-      const month = new Date(tx.verified_at).toLocaleString('default', { month: 'short' });
-      const day = new Date(tx.verified_at).toLocaleString('default', { day: 'numeric' });
-      const key = period === '1M' ? `Apr ${day}` : month;
-      
-      if (!monthlyData[key]) {
-        monthlyData[key] = { value: 0, plans: {} as Record<PlanId, { count: number; total: number }>, totalSales: 0 };
-      }
-      
-      monthlyData[key].value += tx.amount;
-      monthlyData[key].totalSales += 1;
-      
-      const plan = amountToPlan[tx.amount];
-      if (plan) {
-        if (!monthlyData[key].plans[plan]) {
-          monthlyData[key].plans[plan] = { count: 0, total: 0 };
-        }
-        monthlyData[key].plans[plan].count += 1;
-        monthlyData[key].plans[plan].total += tx.amount;
-      }
-    });
-    
-    let displayKeys: string[] = [];
-    if (period === '1M') {
-      // Show daily view for the 1M period - full month from 1-30
-      displayKeys = Array.from({ length: 30 }, (_, i) => `Apr ${i + 1}`);
-    } else if (period === '3M') {
-      displayKeys = ['Feb', 'Mar', 'Apr'];
-    } else if (period === '6M') {
-      displayKeys = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
-    } else {
-      displayKeys = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const periodConfig: Record<ChartPeriod, { unit: 'day' | 'month'; count: number }> = {
+      week: { unit: 'day', count: 7 },
+      '1m': { unit: 'day', count: 30 },
+      '1yr': { unit: 'month', count: 12 },
+      lifetime: { unit: 'month', count: 1 },
+    };
+
+    const { unit } = periodConfig[period];
+    const currentMonthStart = new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), 1));
+
+    let lifetimeCount = 1;
+    if (period === 'lifetime') {
+      const earliest = data.reduce<Date | null>((min, tx) => {
+        const date = new Date(tx.verified_at);
+        if (Number.isNaN(date.getTime())) return min;
+        if (!min || date < min) return date;
+        return min;
+      }, null);
+
+      const lifetimeStart = earliest
+        ? new Date(Date.UTC(earliest.getUTCFullYear(), earliest.getUTCMonth(), 1))
+        : currentMonthStart;
+
+      lifetimeCount =
+        (currentMonthStart.getUTCFullYear() - lifetimeStart.getUTCFullYear()) * 12 +
+        (currentMonthStart.getUTCMonth() - lifetimeStart.getUTCMonth()) +
+        1;
     }
 
-    return displayKeys.map(k => ({
-      month: k,
-      value: monthlyData[k]?.value || 0,
-      plans: monthlyData[k]?.plans || ({} as Record<PlanId, { count: number; total: number }>),
-      totalSales: monthlyData[k]?.totalSales || 0,
+    const count = period === 'lifetime' ? Math.max(1, lifetimeCount) : periodConfig[period].count;
+
+    const startDate = unit === 'day'
+      ? new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate() - (count - 1)))
+      : new Date(Date.UTC(currentMonthStart.getUTCFullYear(), currentMonthStart.getUTCMonth() - (count - 1), 1));
+
+    const bucketDates: Date[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const bucketDate = new Date(startDate);
+      if (unit === 'day') {
+        bucketDate.setUTCDate(startDate.getUTCDate() + i);
+      } else {
+        bucketDate.setUTCMonth(startDate.getUTCMonth() + i, 1);
+      }
+      bucketDates.push(bucketDate);
+    }
+
+    const yearsInRange = new Set(bucketDates.map((date) => date.getUTCFullYear()));
+    const includeYear = yearsInRange.size > 1;
+
+    const dayFormatter = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(includeYear ? { year: 'numeric' } : {}),
+    });
+    const monthFormatter = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      ...(includeYear ? { year: 'numeric' } : {}),
+    });
+
+    const buckets = bucketDates.map((bucketDate) => {
+      const key = unit === 'day'
+        ? bucketDate.toISOString().substring(0, 10)
+        : bucketDate.toISOString().substring(0, 7);
+      const label = unit === 'day'
+        ? dayFormatter.format(bucketDate)
+        : monthFormatter.format(bucketDate);
+      return { key, label };
+    });
+
+    const startKey = buckets[0]?.key;
+    const endKey = buckets[buckets.length - 1]?.key;
+
+    data.forEach((tx) => {
+      const txDate = new Date(tx.verified_at);
+      if (Number.isNaN(txDate.getTime())) return;
+
+      const txKey = unit === 'day'
+        ? txDate.toISOString().substring(0, 10)
+        : txDate.toISOString().substring(0, 7);
+
+      if (!startKey || !endKey || txKey < startKey || txKey > endKey) return;
+
+      if (!seriesData[txKey]) {
+        seriesData[txKey] = { value: 0, plans: {} as Record<PlanId, { count: number; total: number }>, totalSales: 0 };
+      }
+
+      seriesData[txKey].value += tx.amount;
+      seriesData[txKey].totalSales += 1;
+
+      const plan = amountToPlan[tx.amount];
+      if (plan) {
+        if (!seriesData[txKey].plans[plan]) {
+          seriesData[txKey].plans[plan] = { count: 0, total: 0 };
+        }
+        seriesData[txKey].plans[plan].count += 1;
+        seriesData[txKey].plans[plan].total += tx.amount;
+      }
+    });
+
+    return buckets.map((bucket) => ({
+      month: bucket.label,
+      value: seriesData[bucket.key]?.value || 0,
+      plans: seriesData[bucket.key]?.plans || ({} as Record<PlanId, { count: number; total: number }>),
+      totalSales: seriesData[bucket.key]?.totalSales || 0,
     }));
   }, [data, period]);
 
@@ -155,6 +223,45 @@ const CustomAreaChart = ({ data, period }: { data: Payment[]; period: ChartPerio
   // Get hovered point details
   const hoveredPoint = hoveredIndex !== null && !isSinglePoint ? renderData[hoveredIndex] : null;
   const hoveredCoords = hoveredIndex !== null && !isSinglePoint ? getCoordinates(hoveredIndex, renderData[hoveredIndex].value) : null;
+
+  useLayoutEffect(() => {
+    if (!hoverCardRef.current) return;
+    const rect = hoverCardRef.current.getBoundingClientRect();
+    setHoverCardSize((prev) => (
+      prev.width === rect.width && prev.height === rect.height
+        ? prev
+        : { width: rect.width, height: rect.height }
+    ));
+  }, [hoveredPoint]);
+
+  const hoverCardStyle = (() => {
+    if (!hoveredCoords || !containerRef.current) return undefined;
+    const rect = containerRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return undefined;
+
+    const leftPx = (hoveredCoords.x / width) * rect.width;
+    const topPx = (hoveredCoords.y / height) * rect.height;
+    const paddingPx = 12;
+
+    const halfWidth = hoverCardSize.width / 2;
+    const minLeft = halfWidth + paddingPx;
+    const maxLeft = rect.width - halfWidth - paddingPx;
+    const clampedLeft = minLeft >= maxLeft
+      ? rect.width / 2
+      : Math.min(Math.max(leftPx, minLeft), maxLeft);
+
+    const aboveTop = topPx - hoverCardSize.height - paddingPx;
+    const belowTop = topPx + paddingPx;
+    const maxTop = rect.height - hoverCardSize.height - paddingPx;
+    let clampedTop = aboveTop >= paddingPx ? aboveTop : belowTop;
+    if (maxTop < paddingPx) {
+      clampedTop = paddingPx;
+    } else {
+      clampedTop = Math.min(clampedTop, maxTop);
+    }
+
+    return { left: clampedLeft, top: clampedTop, transform: 'translateX(-50%)' };
+  })();
 
   // Handle mouse move for precise hover detection
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -305,8 +412,9 @@ const CustomAreaChart = ({ data, period }: { data: Payment[]; period: ChartPerio
       {/* Hover Details Card - Positioned outside SVG */}
       {hoveredPoint && hoveredCoords && hoveredPoint.totalSales > 0 && containerRef.current && (
         <div 
+          ref={hoverCardRef}
           className="absolute bg-zinc-900/95 backdrop-blur-md border border-[#23f8ff]/40 rounded-2xl p-4 shadow-lg shadow-[#23f8ff]/20 z-50 animate-in fade-in zoom-in-95 duration-200 pointer-events-none"
-          style={{
+          style={hoverCardStyle ?? {
             left: `${(hoveredCoords.x / width) * 100}%`,
             top: `${(hoveredCoords.y / height) * 100}%`,
             transform: 'translate(-50%, -100%)',
@@ -371,7 +479,7 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState<NavId>('Overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1m');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -388,7 +496,7 @@ export default function AdminDashboard() {
   ], []);
   const activeNavIndex = navItems.findIndex(item => item.id === activeTab);
 
-  const periods = useMemo<ChartPeriod[]>(() => ['1M', '3M', '6M', '1Y'], []);
+  const periods = useMemo<ChartPeriod[]>(() => ['week', '1m', '1yr', 'lifetime'], []);
   const activePeriodIndex = periods.indexOf(chartPeriod);
 
   // Close mobile menu when tab changes
@@ -877,7 +985,7 @@ export default function AdminDashboard() {
                     <div className="relative flex p-1 bg-zinc-950/50 rounded-xl border border-white/5 w-fit">
                       {/* Animated Sliding Pill */}
                       <div 
-                        className="absolute top-1 bottom-1 left-1 w-12 rounded-lg bg-[#23f8ff] shadow-[0_0_10px_rgba(35,248,255,0.4)] transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1)"
+                        className="absolute top-1 bottom-1 left-1 w-20 rounded-lg bg-[#23f8ff] shadow-[0_0_10px_rgba(35,248,255,0.4)] transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1)"
                         style={{ transform: `translateX(${activePeriodIndex * 100}%)` }}
                       />
                       
@@ -885,7 +993,7 @@ export default function AdminDashboard() {
                         <button 
                           key={period}
                           onClick={() => setChartPeriod(period)}
-                          className={`relative z-10 w-12 py-1.5 text-xs font-medium transition-colors duration-300 ${
+                          className={`relative z-10 w-20 py-1.5 text-xs font-medium transition-colors duration-300 ${
                             chartPeriod === period 
                               ? 'text-zinc-950' 
                               : 'text-zinc-400 hover:text-white'
