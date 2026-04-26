@@ -489,6 +489,17 @@ export default function AdminDashboard() {
   const [filterMinAmount, setFilterMinAmount] = useState('');
   const [filterMaxAmount, setFilterMaxAmount] = useState('');
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  
+  // Manual transaction add state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTxData, setNewTxData] = useState({
+    transaction_id: '',
+    coin: 'USDT',
+    network: '',
+    amount: '',
+    key: '',
+    verified_at: new Date().toISOString().slice(0, 16), // YYYY-MM-DDTHH:mm format
+  });
 
   const navItems = useMemo<{ id: NavId; icon: typeof LayoutDashboard; label: string }[]>(() => [
     { id: 'Overview', icon: LayoutDashboard, label: 'Overview' },
@@ -550,6 +561,67 @@ export default function AdminDashboard() {
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (appSecret) fetchPayments();
+  };
+
+  // Handler for adding a new transaction manually
+  const handleAddTransaction = async () => {
+    if (!newTxData.transaction_id.trim() || !newTxData.amount.trim() || !newTxData.network.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`https://api.harvestbot.app/api/v1/admin/verified_payments?app_secret=${encodeURIComponent(appSecret)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_id: newTxData.transaction_id,
+          amount: parseFloat(newTxData.amount),
+          coin: 'USDT',
+          network: newTxData.network,
+          key: newTxData.key.trim() || null,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.detail || 'Failed to add transaction');
+        return;
+      }
+      
+      const result = await response.json();
+      
+      // Add to local state
+      const newPayment: Payment = {
+        id: result.transaction_id,
+        transaction_id: result.transaction_id,
+        reference_id: result.transaction_id,
+        order_id: null,
+        amount: result.amount,
+        verified_at: new Date().toISOString(),
+        key: result.key || '',
+        coin: result.coin,
+        network: result.network,
+      };
+      
+      setData([newPayment, ...data]);
+      
+      // Reset form and close modal
+      setNewTxData({
+        transaction_id: '',
+        coin: 'USDT',
+        network: '',
+        amount: '',
+        key: '',
+        verified_at: new Date().toISOString().slice(0, 16),
+      });
+      setShowAddModal(false);
+      
+      alert('Transaction added successfully!');
+    } catch (err) {
+      console.error('Error:', err);
+      alert('Failed to add transaction');
+    }
   };
 
   // --- FILTERED DATA ---
@@ -1048,14 +1120,24 @@ export default function AdminDashboard() {
                   <h2 className="text-lg font-semibold text-white">
                     {activeTab === 'Transactions' ? 'All Transactions' : 'Recent Transactions'}
                   </h2>
-                  {activeTab === 'Overview' && (
-                    <button 
-                      onClick={() => setActiveTab('Transactions')}
-                      className="text-sm text-[#23f8ff] font-medium hover:text-white transition-colors drop-shadow-[0_0_5px_rgba(35,248,255,0.5)]"
-                    >
-                      View All
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isAuthenticated && (
+                      <button 
+                        onClick={() => setShowAddModal(true)}
+                        className="text-sm bg-[#23f8ff]/10 border border-[#23f8ff]/30 text-[#23f8ff] px-3 py-2 rounded-lg font-medium hover:bg-[#23f8ff]/20 hover:border-[#23f8ff]/50 transition-all drop-shadow-[0_0_5px_rgba(35,248,255,0.3)]"
+                      >
+                        + Add Transaction
+                      </button>
+                    )}
+                    {activeTab === 'Overview' && (
+                      <button 
+                        onClick={() => setActiveTab('Transactions')}
+                        className="text-sm text-[#23f8ff] font-medium hover:text-white transition-colors drop-shadow-[0_0_5px_rgba(35,248,255,0.5)]"
+                      >
+                        View All
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Filters Section - Only show on Transactions tab */}
@@ -1362,6 +1444,109 @@ export default function AdminDashboard() {
 
           </div>
         </div>
+
+        {/* Add Transaction Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">Add Transaction Manually</h3>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="text-zinc-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Transaction ID Input */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Transaction ID</label>
+                  <input
+                    type="text"
+                    value={newTxData.transaction_id}
+                    onChange={(e) => setNewTxData({ ...newTxData, transaction_id: e.target.value })}
+                    placeholder="Enter transaction ID"
+                    className="w-full bg-zinc-800/50 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:border-[#23f8ff]/50 focus:ring-1 focus:ring-[#23f8ff]/50 transition-all"
+                  />
+                </div>
+
+                {/* Coin (USDT only) */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Coin</label>
+                  <div className="w-full bg-zinc-800/50 border border-white/10 rounded-lg px-3 py-2 text-white">
+                    USDT
+                  </div>
+                </div>
+
+                {/* Network Input */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Network</label>
+                  <input
+                    type="text"
+                    value={newTxData.network}
+                    onChange={(e) => setNewTxData({ ...newTxData, network: e.target.value })}
+                    placeholder="Enter network (e.g., Ethereum, Polygon)"
+                    className="w-full bg-zinc-800/50 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:border-[#23f8ff]/50 focus:ring-1 focus:ring-[#23f8ff]/50 transition-all"
+                  />
+                </div>
+
+                {/* Amount Input */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Amount (USD)</label>
+                  <input
+                    type="number"
+                    value={newTxData.amount}
+                    onChange={(e) => setNewTxData({ ...newTxData, amount: e.target.value })}
+                    placeholder="Enter amount"
+                    step="0.01"
+                    min="0"
+                    className="w-full bg-zinc-800/50 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:border-[#23f8ff]/50 focus:ring-1 focus:ring-[#23f8ff]/50 transition-all"
+                  />
+                </div>
+
+                {/* License Key Input (Optional) */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">License Key (Optional)</label>
+                  <input
+                    type="text"
+                    value={newTxData.key}
+                    onChange={(e) => setNewTxData({ ...newTxData, key: e.target.value })}
+                    placeholder="Enter license key or leave blank"
+                    className="w-full bg-zinc-800/50 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-zinc-500 focus:border-[#23f8ff]/50 focus:ring-1 focus:ring-[#23f8ff]/50 transition-all"
+                  />
+                </div>
+
+                {/* Date/Time Input */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={newTxData.verified_at}
+                    onChange={(e) => setNewTxData({ ...newTxData, verified_at: e.target.value })}
+                    className="w-full bg-zinc-800/50 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-[#23f8ff]/50 focus:ring-1 focus:ring-[#23f8ff]/50 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-white/5 flex gap-3">
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-4 py-2 rounded-lg bg-zinc-800 border border-white/10 text-zinc-300 hover:text-white hover:border-[#23f8ff]/30 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddTransaction}
+                  className="flex-1 px-4 py-2 rounded-lg bg-[#23f8ff]/10 border border-[#23f8ff]/30 text-[#23f8ff] hover:bg-[#23f8ff]/20 hover:border-[#23f8ff]/50 font-medium transition-all"
+                >
+                  Add Transaction
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
