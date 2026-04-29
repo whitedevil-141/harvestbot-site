@@ -106,8 +106,19 @@ const getCleanReturnUrl = () => {
   const url = new URL(window.location.href);
   url.searchParams.delete("code");
   url.searchParams.delete("discord_id");
+  url.searchParams.delete("discord_name");
+  url.searchParams.delete("discord_avatar");
   url.searchParams.delete("state");
   return url.toString();
+};
+
+const isLocalOrigin = (url: URL) =>
+  ["localhost", "127.0.0.1", "0.0.0.0"].includes(url.hostname);
+
+const isAllowedReturnUrl = (url: URL) => {
+  if (typeof window === "undefined") return false;
+  if (url.origin === window.location.origin) return true;
+  return isLocalOrigin(url) && url.pathname.replace(/\/$/, "") === "/payment";
 };
 
 const resolveReturnUrl = () => {
@@ -117,7 +128,7 @@ const resolveReturnUrl = () => {
   if (stateParam) {
     try {
       const stateUrl = new URL(stateParam, window.location.origin);
-      if (stateUrl.origin === window.location.origin) {
+      if (isAllowedReturnUrl(stateUrl)) {
         const hasPlan = stateUrl.searchParams.has("plan");
         const hasAmount = stateUrl.searchParams.has("amount");
         if (hasPlan || hasAmount) return stateUrl.toString();
@@ -131,13 +142,62 @@ const resolveReturnUrl = () => {
   if (sessionValue) {
     try {
       const sessionUrl = new URL(sessionValue, window.location.origin);
-      if (sessionUrl.origin === window.location.origin) return sessionUrl.toString();
+      if (isAllowedReturnUrl(sessionUrl)) return sessionUrl.toString();
     } catch {
       // Ignore invalid session values.
     }
   }
 
   return getCleanReturnUrl();
+};
+
+const setOptionalStorageValue = (key: string, value: string | null) => {
+  if (!value) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, value);
+};
+
+const buildDiscordReturnUrl = (
+  returnUrl: string,
+  identity?: { id?: string; name?: string; avatar?: string }
+) => {
+  if (!returnUrl) return "";
+  try {
+    const target = new URL(returnUrl, window.location.origin);
+    if (!isAllowedReturnUrl(target)) return "";
+
+    if (target.origin !== window.location.origin && identity?.id) {
+      target.searchParams.set("discord_id", identity.id);
+      if (identity.name) target.searchParams.set("discord_name", identity.name);
+      if (identity.avatar) target.searchParams.set("discord_avatar", identity.avatar);
+    }
+
+    return target.toString();
+  } catch {
+    return "";
+  }
+};
+
+const finishDiscordCallback = (identity?: { id?: string; name?: string; avatar?: string }) => {
+  const returnUrl = resolveReturnUrl();
+  sessionStorage.removeItem("discord_redirect_uri");
+  sessionStorage.removeItem("discord_return_url");
+
+  const targetUrl = buildDiscordReturnUrl(returnUrl, identity);
+  if (!targetUrl) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return;
+  }
+
+  const target = new URL(targetUrl, window.location.origin);
+  if (target.origin !== window.location.origin || target.pathname !== window.location.pathname) {
+    window.location.replace(target.toString());
+    return;
+  }
+
+  window.history.replaceState({}, document.title, target.toString());
 };
 
 const getNumeric = (value: unknown) => {
@@ -252,6 +312,8 @@ export default function VerifyClient() {
   useEffect(() => {
     const discordParam = searchParams.get("discord_id");
     if (discordParam) {
+      const discordNameParam = searchParams.get("discord_name");
+      const discordAvatarParam = searchParams.get("discord_avatar");
       const storedId = getStoredDiscordId();
       if (storedId && storedId !== discordParam) {
         localStorage.removeItem("discord_name");
@@ -262,9 +324,11 @@ export default function VerifyClient() {
 
       localStorage.setItem("discord_id", discordParam);
       setDiscordId(discordParam);
-      const returnUrl = resolveReturnUrl();
-      sessionStorage.removeItem("discord_return_url");
-      window.history.replaceState({}, document.title, returnUrl || window.location.pathname);
+      setOptionalStorageValue("discord_name", discordNameParam);
+      setOptionalStorageValue("discord_avatar", discordAvatarParam);
+      setDiscordName(discordNameParam || null);
+      setDiscordAvatar(discordAvatarParam || null);
+      finishDiscordCallback();
       return;
     }
 
@@ -308,15 +372,15 @@ export default function VerifyClient() {
             setDiscordAvatar(null);
           }
         }
-        const returnUrl = resolveReturnUrl();
-        sessionStorage.removeItem("discord_return_url");
-        window.history.replaceState({}, document.title, returnUrl || window.location.pathname);
+        finishDiscordCallback({
+          id: receivedId,
+          name: data?.name ? String(data.name) : "",
+          avatar: data?.avatar ? String(data.avatar) : "",
+        });
       })
       .catch(() => {
         if (!active) return;
-        const returnUrl = resolveReturnUrl();
-        sessionStorage.removeItem("discord_return_url");
-        window.history.replaceState({}, document.title, returnUrl || window.location.pathname);
+        finishDiscordCallback();
       });
 
     return () => {

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(awk 'NR==1252,NR==1712' F:/Real-Projects/harvestbot-site/app/v2/page.tsx)",
+      "Bash(git log *)"
+    ]
+  }
+}

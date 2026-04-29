@@ -1121,7 +1121,7 @@ export default function AdminDashboard() {
                     {activeTab === 'Transactions' ? 'All Transactions' : 'Recent Transactions'}
                   </h2>
                   <div className="flex items-center gap-2">
-                    {isAuthenticated && (
+                    {activeTab === 'Transactions' && isAuthenticated && (
                       <button 
                         onClick={() => setShowAddModal(true)}
                         className="text-sm bg-[#23f8ff]/10 border border-[#23f8ff]/30 text-[#23f8ff] px-3 py-2 rounded-lg font-medium hover:bg-[#23f8ff]/20 hover:border-[#23f8ff]/50 transition-all drop-shadow-[0_0_5px_rgba(35,248,255,0.3)]"

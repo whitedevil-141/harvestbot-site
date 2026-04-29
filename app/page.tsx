@@ -1,100 +1,46 @@
-"use client";
+'use client';
+
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-// Link import removed
 import { 
-  Bot,
-  BarChart3, 
+  Coins, 
+  Droplets, 
+  Layers, 
   Clock, 
-  CheckCircle, 
-  ArrowRight, 
-  Menu, 
-  X, 
-  Sword, 
-  Shield, 
-  Cpu, 
-  Layers,
-  Send,
+  Target, 
+  ShieldCheck, 
+  Swords, 
+  BarChart3, 
+  Timer, 
+  ArrowUpCircle, 
+  Check,
+  ArrowLeft,
+  Star,
+  MessageSquareQuote,
+  ChevronRight,
+  CreditCard,
+  Lock,
+  BadgeCheck,
+  CheckCircle2,
+  Copy,
+  Sparkles,
+  UserRound,
+  Wallet,
+  Bitcoin,
+  Gift,
+  Twitter,
+  MessageSquare,
+  Menu,
+  X
 } from 'lucide-react';
+import { Stats } from 'fs';
 
-/**
- * ANIMATION HOOKS & COMPONENTS
- */
-const useOnScreen = (options?: IntersectionObserverInit) => {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+// --- DATA ---
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setIsVisible(true);
-        observer.unobserve(entry.target);
-      }
-    }, options);
-
-    if (ref.current) observer.observe(ref.current);
-
-    return () => {
-      if (ref.current) observer.unobserve(ref.current);
-    };
-  }, [options]);
-
-  return [ref, isVisible] as const;
-};
-
-type FadeInProps = {
-  children: React.ReactNode;
-  delay?: number;
-  direction?: "up" | "down" | "left" | "right";
-  className?: string;
-  fullWidth?: boolean;
-};
-
-const FadeIn: React.FC<FadeInProps> = ({
-  children,
-  delay = 0,
-  direction = "up",
-  className = "",
-  fullWidth = false,
-}) => {
-  const [ref, isVisible] = useOnScreen({ threshold: 0.1 });
-  
-  const getTransform = () => {
-    if (!isVisible) {
-      switch (direction) {
-        case 'up': return 'translateY(30px)';
-        case 'down': return 'translateY(-30px)';
-        case 'left': return 'translateX(-30px)';
-        case 'right': return 'translateX(30px)';
-        default: return 'translateY(30px)';
-      }
-    }
-    return 'translate(0)';
-  };
-
-  return (
-    <div
-      ref={ref}
-      style={{ 
-        transitionDelay: `${delay}ms`,
-        opacity: isVisible ? 1 : 0,
-        transform: getTransform(),
-      }}
-      className={`transition-all duration-1000 cubic-bezier(0.17, 0.55, 0.55, 1) ${fullWidth ? 'w-full' : ''} ${className}`}
-    >
-      {children}
-    </div>
-  );
-};
-
-/**
- * TYPES
- */
 type Vouch = {
   id: string;
   name: string;
   username: string;
-  discriminator: string;
+  discriminator?: string;
   avatar: string;
   text: string;
   createdAt: string;
@@ -108,810 +54,839 @@ type GlobalStats = {
   usersValue: string;
 };
 
-type Plan = {
-  name: string;
-  price: string;
-  period: string;
-  feat: string[];
-  popular?: boolean;
+const STATS_API = "https://api.harvestbot.app/api/v1/stats";
+const VOUCHES_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
+
+const DEFAULT_GLOBAL_STATS: GlobalStats = {
+  goldValue: "0",
+  elixirValue: "0",
+  wallsValue: "0",
+  runTimeValue: "0h",
+  usersValue: "0",
 };
 
-/**
- * MAIN APP COMPONENT
- */
-export default function App() {
-  const router = useRouter();
-  const WORKER_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
-  const API_DOMAIN = "https://api.harvestbot.app"; 
+const timeAgo = (iso: string) => {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return iso;
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return `${Math.max(s, 0)}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+};
 
-  const [vouches, setVouches] = useState<Vouch[]>([]);
-  const [globalStats, setGlobalStats] = useState<GlobalStats>({
-    goldValue: "0",
-    elixirValue: "0",
-    wallsValue: "0",
-    runTimeValue: "0h",
-    usersValue: "0",
-  });
-  const [vouchesLoading, setVouchesLoading] = useState(true);
-  const [newIds] = useState<Set<string>>(new Set());
+const PRICING_PLANS = [
+  { id: 'weekly', name: 'Weekly', price: '$2', duration: '7 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Standard Support'], recommended: false },
+  { id: 'biweekly', name: 'Bi-Weekly', price: '$5', duration: '15 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Priority Support'], recommended: false },
+  { id: 'monthly', name: 'Monthly', price: '$8', duration: '30 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'VIP Support'], recommended: false },
+  { id: 'lifetime', name: 'Lifetime', price: '$35', duration: 'Lifetime', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Lifetime Support'], recommended: true },
+];
 
-  const DEFAULT_GLOBAL_STATS: GlobalStats = {
-    goldValue: "0",
-    elixirValue: "0",
-    wallsValue: "0",
-    runTimeValue: "0h",
-    usersValue: "0",
+const SHOWCASE_FEATURES = [
+  { id: 'farming', title: 'Smart Base Hunting', icon: Target, desc: 'Our AI scans thousands of bases per minute, identifying dead bases with full collectors to maximize profit while minimizing troop cost.' },
+  { id: 'walls', title: 'Auto Wall Upgrades', icon: Layers, desc: 'Never hit the resource cap. The bot automatically identifies your cheapest walls and dumps excess loot into them.' },
+  { id: 'antiban', title: 'Human-like Anti-Ban', icon: ShieldCheck, desc: 'Simulates real human touches with randomized delays, imperfect drop patterns, and forced break schedules.' },
+  { id: 'stats', title: 'Live Dashboard', icon: BarChart3, desc: 'Monitor your hourly gains, total loot, and attack history in real-time from our beautiful web dashboard.' }
+];
+
+// --- COMPONENTS ---
+
+type ButtonProps = {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'outline';
+  className?: string;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>;
+
+const Button = ({ children, variant = 'primary', className = '', ...props }: ButtonProps) => {
+  const baseStyles = "relative overflow-hidden inline-flex items-center justify-center font-semibold transition-all duration-300 rounded-xl group active:scale-[0.98]";
+  const variants = {
+    primary: "bg-[#23f8ff] text-neutral-950 hover:bg-[#1edce3] shadow-[0_0_20px_rgba(35,248,255,0.15)] hover:shadow-[0_0_30px_rgba(35,248,255,0.3)] px-5 py-2.5 md:px-6 md:py-3",
+    secondary: "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/20 px-5 py-2.5 md:px-6 md:py-3 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    outline: "border border-[#23f8ff]/50 text-[#23f8ff] hover:bg-[#23f8ff]/10 hover:border-[#23f8ff] px-5 py-2.5 md:px-6 md:py-3",
   };
 
-  const goToVerification = (plan: Plan) => {
-    const amount = Number(plan.price.replace("$", ""));
-    router.push(`/verify?plan=${encodeURIComponent(plan.name)}&amount=${amount}`);
-  };
+  return (
+    <button className={`${baseStyles} ${variants[variant]} ${className}`} {...props}>
+      <span className="relative z-10 flex items-center justify-center">{children}</span>
+      {variant === 'primary' && (
+        <div className="absolute inset-0 h-full w-full bg-linear-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shine" />
+      )}
+    </button>
+  );
+};
 
+const CountUp = ({ end, duration = 2000 }: { end: number | string; duration?: number; suffix?: string }) => {
+  const [count, setCount] = useState<number | string>(typeof end === 'string' ? '0' : 0);
+  const countRef = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
-    let alive = true;
+    let frameId: number | null = null;
+    let hasAnimated = false;
 
-    (async () => {
-      try {
-        const r = await fetch(WORKER_API, { cache: "no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const animate = () => {
+      if (hasAnimated) return;
+      hasAnimated = true;
+      let startTime: number | null = null;
+      const tick = (timestamp: number) => {
+        if (startTime === null) startTime = timestamp;
+        const progress = Math.min((timestamp - startTime) / duration, 1);
 
-        const data = await r.json();
-        if (!alive) return;
+        if (typeof end === 'string') {
+          const numericEnd = parseFloat(end);
+          const suffixText = end.replace(/[0-9.]/g, '');
+          if (Number.isFinite(numericEnd)) {
+            const currentCount = Math.floor(numericEnd * progress);
+            setCount(currentCount + suffixText);
+          } else {
+            setCount(end);
+          }
+        } else {
+          setCount(Math.floor(end * progress));
+        }
 
-        const safeVouches = Array.isArray(data?.vouches) ? data.vouches : [];
-        setVouches(safeVouches);
-        setVouchesLoading(false);
-      } catch {
-        if (!alive) return;
+        if (progress < 1) {
+          frameId = requestAnimationFrame(tick);
+        } else {
+          setCount(end);
+        }
+      };
+      frameId = requestAnimationFrame(tick);
+    };
 
-        setVouches([]);
-        setVouchesLoading(false);
-      }
-    })();
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) animate();
+      },
+      { threshold: 0.1 }
+    );
+
+    const node = countRef.current;
+    if (node) observer.observe(node);
 
     return () => {
-      alive = false;
+      if (node) observer.unobserve(node);
+      if (frameId !== null) cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [end, duration]);
+
+  return <span ref={countRef}>{count}</span>;
+};
+
+// --- PAGES ---
+
+const smoothScrollToId = (id: string) => {
+  const element = document.getElementById(id);
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+};
+
+const formatVouchDate = (iso: string): string => {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}w ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const useInView = (ref: React.RefObject<HTMLElement | null>) => {
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    if (!ref.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return isInView;
+};
+
+function LandingPage({ onCheckout }: { onCheckout: (plan: any) => void }) {
+  const [billingCycle, setBillingCycle] = useState('subscription');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeShowcase, setActiveShowcase] = useState(SHOWCASE_FEATURES[0].id);
+  const [globalStats, setGlobalStats] = useState<GlobalStats>(DEFAULT_GLOBAL_STATS);
+  const [vouches, setVouches] = useState<Vouch[]>([]);
+  const [openFAQ, setOpenFAQ] = useState<number | null>(0);
+
+  // Refs for lazy loading sections
+  const showcaseRef = useRef<HTMLElement | null>(null);
+  const featuresRef = useRef<HTMLElement | null>(null);
+  const vouchesRef = useRef<HTMLElement | null>(null);
+  const pricingRef = useRef<HTMLElement | null>(null);
+  const faqRef = useRef<HTMLElement | null>(null);
+
+  const showcaseInView = useInView(showcaseRef);
+  const featuresInView = useInView(featuresRef);
+  const vouchesInView = useInView(vouchesRef);
+  const pricingInView = useInView(pricingRef);
+  const faqInView = useInView(faqRef);
 
   // Fetch global stats with retries on cold-start and periodic refresh.
   useEffect(() => {
     let alive = true;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const normalizeStats = (data: unknown): GlobalStats => {
-      const stats = (data ?? {}) as Partial<Record<string, unknown>>;
-
-      return {
-        goldValue: String(stats.total_gold ?? DEFAULT_GLOBAL_STATS.goldValue),
-        elixirValue: String(stats.total_elixir ?? DEFAULT_GLOBAL_STATS.elixirValue),
-        wallsValue: String(stats.total_wall ?? DEFAULT_GLOBAL_STATS.wallsValue),
-        runTimeValue: String(stats.total_runtime ?? DEFAULT_GLOBAL_STATS.runTimeValue),
-        usersValue: String(stats.total_users ?? DEFAULT_GLOBAL_STATS.usersValue),
-      };
-    };
+    const normalizeStats = (data: any): GlobalStats => ({
+      goldValue: String(data?.total_gold ?? DEFAULT_GLOBAL_STATS.goldValue),
+      elixirValue: String(data?.total_elixir ?? DEFAULT_GLOBAL_STATS.elixirValue),
+      wallsValue: String(data?.total_wall ?? DEFAULT_GLOBAL_STATS.wallsValue),
+      runTimeValue: String(data?.total_runtime ?? DEFAULT_GLOBAL_STATS.runTimeValue),
+      usersValue: String(data?.total_users ?? DEFAULT_GLOBAL_STATS.usersValue),
+    });
 
     const fetchStats = async (attempt = 0) => {
       try {
-        const r = await fetch(`${API_DOMAIN}/api/v1/stats`, { cache: "no-store" });
+        const r = await fetch(STATS_API, { cache: "no-store" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
         const data = await r.json();
         if (!alive) return;
-
         setGlobalStats(normalizeStats(data));
       } catch {
         if (!alive) return;
-
-        // Retry a few times in case API is warming up on first run.
         if (attempt < 4) {
           const delayMs = Math.min(1000 * 2 ** attempt, 10000);
-          retryTimeout = setTimeout(() => {
-            fetchStats(attempt + 1);
-          }, delayMs);
+          retryTimeout = setTimeout(() => fetchStats(attempt + 1), delayMs);
         }
       }
     };
 
     fetchStats();
-
-    const refreshInterval = setInterval(() => {
-      fetchStats();
-    }, 60000);
-
+    const refresh = setInterval(() => fetchStats(), 60000);
     return () => {
       alive = false;
-      clearInterval(refreshInterval);
+      clearInterval(refresh);
       if (retryTimeout) clearTimeout(retryTimeout);
     };
   }, []);
 
-  const timeAgo = (iso: string) => {
-    const d = new Date(iso).getTime();
-    const s = Math.floor((Date.now() - d) / 1000);
-    if (s < 60) return `${s}s`;
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h`;
-    return `${Math.floor(h / 24)}d`;
-  };
-
-
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Handle scroll for navbar styling
+  // Fetch vouches and refresh periodically.
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await fetch(VOUCHES_API, { cache: "no-store" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const json = await r.json();
+        const list: Vouch[] = Array.isArray(json) ? json : Array.isArray(json?.vouches) ? json.vouches : [];
+        if (!alive || !list.length) return;
+        setVouches((prev) => {
+          if (prev.length === 0) return list;
+          const prevIds = new Set(prev.map((x) => x.id));
+          const incomingNew = list.filter((x) => !prevIds.has(x.id));
+          if (!incomingNew.length) return prev;
+          return [...prev, ...incomingNew].slice(-30);
+        });
+      } catch {
+        // Keep whatever we already have on error.
+      }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
-  const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    e.preventDefault();
-
-    const element = document.querySelector(href);
-    if (!element) return;
-
-    const el = element as HTMLElement;
-    const offsetTop = el.offsetTop - 100;
-
-    window.scrollTo({ top: offsetTop, behavior: "smooth" });
-    setMobileMenuOpen(false);
-  };
-
-
-  const navLinks = [
-    { name: 'Features', href: '#features' },
-    { name: 'How it Works', href: '#how-it-works' },
-    { name: 'Feedbacks', href: '#feedbacks' },
-    { name: 'Pricing', href: '#pricing' },
-  ];
-
-  const plans: Plan[] = [
-    {
-      name: "Weekly",
-      price: "$2",
-      period: "/ 7 Days",
-      feat: [
-        "Full Bot Access",
-        "All Elite Strategies",
-        "Smart Wall Upgrader",
-        "Standard Support",
-      ],
-      popular: false,
-    },
-    {
-      name: "Bi-Weekly",
-      price: "$5",
-      period: "/ 15 Days",
-      feat: [
-        "Full Bot Access",
-        "All Elite Strategies",
-        "Smart Wall Upgrader",
-        "Priority Support",
-      ],
-      popular: false,
-    },
-    {
-      name: "Monthly",
-      price: "$8",
-      period: "/ 30 Days",
-      feat: [
-        "Full Bot Access",
-        "All Elite Strategies",
-        "Smart Wall Upgrader",
-        "VIP Support",
-      ],
-      popular: false,
-    },
-    {
-      name: "Lifetime",
-      price: "$35",
-      period: "/ Lifetime",
-      feat: [
-        "Full Bot Access",
-        "All Elite Strategies",
-        "Smart Wall Upgrader",
-        "Lifetime Support",
-      ],
-      popular: true,
-    },
-  ];
+  // Injecting custom styles for the marquee animation
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes scroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(24px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes shine {
+        100% { transform: translateX(100%); }
+      }
+      @keyframes gradientMove {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      @keyframes pulseSlow {
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 1; }
+      }
+      @keyframes smoothAppear {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-scroll {
+        animation: scroll 40s linear infinite;
+        will-change: transform;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+      }
+      .animate-scroll:hover {
+        animation-play-state: paused;
+      }
+      .animate-fade-in-up {
+        animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        opacity: 0;
+      }
+      .animate-smooth-appear {
+        animation: smoothAppear 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        opacity: 0;
+      }
+      .animate-gradient {
+        background-size: 200% auto;
+        animation: gradientMove 4s linear infinite;
+      }
+      .animate-pulse-slow {
+        animation: pulseSlow 4s ease-in-out infinite;
+      }
+      .delay-100 { animation-delay: 100ms; }
+      .delay-200 { animation-delay: 200ms; }
+      .delay-300 { animation-delay: 300ms; }
+      .delay-400 { animation-delay: 400ms; }
+      .delay-500 { animation-delay: 500ms; }
+      .delay-600 { animation-delay: 600ms; }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-[#23f8ff] selection:text-slate-900 overflow-x-hidden">
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
-        @keyframes float-delayed {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-15px); }
-        }
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.15; transform: scale(1.1); }
-        }
-        @keyframes scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-float { animation: float 6s ease-in-out infinite; }
-        .animate-float-delayed { animation: float-delayed 7s ease-in-out infinite 2s; }
-        .animate-pulse-slow { animation: pulse-slow 8s ease-in-out infinite; }
-        .animate-scroll {
-          animation: scroll 60s linear infinite;
-          width: max-content;
-        }
-        .animate-scroll:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
+    <div className="relative min-h-screen bg-[#0a0a0a] text-neutral-200 font-sans selection:bg-[#23f8ff]/30">
       
-      {/* BACKGROUND ELEMENTS */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#23f8ff]/10 rounded-full blur-[120px] animate-pulse-slow" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
-      </div>
-
-      {/* NAVIGATION */}
-      <nav 
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-slate-950/90 backdrop-blur-lg border-b border-slate-800/50 py-4 shadow-lg shadow-black/20' : 'bg-transparent py-6'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <div
-            className="flex items-center gap-3 cursor-pointer select-none"
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          >
-            <img
-              src="/logo.png"
-              alt="HarvestBot"
-              className="h-9 md:h-10 w-auto object-contain"
-            />
-
-            <span className="font-bold text-xl md:text-2xl tracking-tight text-white">
-              Harvest<span className="text-[#23f8ff]">Bot</span>
-            </span>
-          </div>
-
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <a 
-                key={link.name} 
-                href={link.href}
-                onClick={(e) => scrollToSection(e, link.href)}
-                className="text-sm font-medium text-slate-300 hover:text-[#23f8ff] transition-colors relative group"
-              >
-                {link.name}
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#23f8ff] transition-all duration-300 group-hover:w-full"></span>
-              </a>
-            ))}
-            <a
-              href="https://discord.com/invite/ymj4rEHpEV"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 px-5 py-2.5 rounded-lg font-bold transition-all hover:shadow-[0_0_25px_rgba(35,248,255,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none text-sm group inline-flex items-center"
-            >
-              Contact
-              <Send className="w-4 h-4 inline-block ml-1 group-hover:translate-x-1 transition-transform" />
-            </a>
-
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button 
-            className="md:hidden text-slate-300 hover:text-white p-2"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X /> : <Menu />}
-          </button>
-        </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800 p-6 flex flex-col gap-4 animate-in slide-in-from-top-5 shadow-2xl">
-            {navLinks.map((link) => (
-              <a 
-                key={link.name} 
-                href={link.href}
-                onClick={(e) => scrollToSection(e, link.href)}
-                className="text-lg font-medium text-slate-300 hover:text-[#23f8ff] py-2 border-b border-slate-800/50"
-              >
-                {link.name}
-              </a>
-            ))}
-            <a
-              href="https://discord.com/invite/ymj4rEHpEV"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-[#23f8ff] text-slate-900 px-5 py-3 rounded-lg font-bold w-full mt-2 shadow-[0_0_20px_rgba(35,248,255,0.3)] inline-flex items-center justify-center"
-            >
-              Join Discord
-            </a>
-          </div>
-        )}
-      </nav>
-
-      {/* HERO SECTION */}
-      <section className="relative pt-28 pb-16 md:pt-48 md:pb-32 px-4 sm:px-6 z-10 overflow-hidden">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 md:gap-12 items-center">
-          <div>
-            <FadeIn direction="right">
-              <div className="inline-flex w-fit max-w-full items-center gap-2 px-3 py-1 rounded-full bg-[#23f8ff]/10 border border-[#23f8ff]/20 text-[#23f8ff] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mb-5 sm:mb-6 hover:bg-[#23f8ff]/20 transition-colors cursor-default whitespace-normal sm:whitespace-nowrap">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#23f8ff] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#23f8ff]"></span>
-                </span>
-                New Release: v3.2 Available Now!
-              </div>
-            </FadeIn>
-            
-            <FadeIn delay={100} direction="right">
-              <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.08] mb-5 sm:mb-6 tracking-tight">
-                Max Your Base <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#23f8ff] via-[#00d0d6] to-purple-500">
-                  While You Sleep
-                </span>
-              </h1>
-            </FadeIn>
-            
-            <FadeIn delay={200} direction="right">
-              <p className="text-base sm:text-lg text-slate-400 mb-7 sm:mb-8 max-w-xl leading-relaxed">
-                The ultimate Clash of Clans automation tool. Auto-farm millions of resources, keep your walls upgrading, and never miss a builder cycle again.
-              </p>
-            </FadeIn>
-            
-            <FadeIn delay={300} direction="up">
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-
-                <a
-                    href="/download/setup.exe"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full sm:w-auto items-center justify-center gap-2 bg-white text-slate-950 px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-bold text-base sm:text-lg hover:bg-slate-200 transition-all hover:-translate-y-1 shadow-[0_0_20px_rgba(255,255,255,0.15)] group"
-                  >
-                    Download Bot
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </a>
-
-                <a
-                  href="#features"
-                  onClick={(e) => scrollToSection(e as unknown as React.MouseEvent<HTMLAnchorElement>, "#features")}
-                  className="flex w-full sm:w-auto items-center justify-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-semibold hover:bg-slate-800 transition-all hover:-translate-y-1 hover:border-[#23f8ff]/50"
-                >
-                  View Features
-                </a>
-              </div>
-            </FadeIn>
-            
-            <FadeIn delay={400} direction="up">
-              <div className="mt-8 sm:mt-10 flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-slate-500">
-                <div className="flex -space-x-3 overflow-hidden">
-                  {vouches.slice(0, 6).map((vouch, i) => (
-                    <div key={vouch.id || i} className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-xs font-bold text-slate-300 hover:-translate-y-1 hover:z-10 transition-transform cursor-default">
-                      <img className='rounded-full w-full h-full object-cover' src={vouch.avatar || ""} alt={vouch.name || ""} />
-                    </div>
-                  ))}
-                  {vouches.length > 6 && (
-                    <div className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-950 flex items-center justify-center text-[10px] font-bold text-slate-300">
-                      +{vouches.length - 6}
-                    </div>
-                  )}
-                </div>
-                <p className="leading-tight">Used by <span className="font-mono ">{globalStats?.usersValue}</span> Chiefs Worldwide</p>
-              </div>
-            </FadeIn>
-          </div>
-
-          {/* Hero Visual - Stats Overview */}
-          <FadeIn delay={200} direction="left" className="relative perspective-1000">
-            <div className="relative z-10 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden group animate-float transform hover:scale-[1.02] transition-transform duration-500 hover:border-[#23f8ff]/20">
-               {/* Dashboard Header */}
-               <div className="bg-slate-800/50 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
-                  <div className="w-3 h-3 rounded-full bg-[#23f8ff]/50" />
-                </div>
-                <div className="text-xs font-mono text-slate-500">LIVE GLOBAL METRICS</div>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="p-6 md:p-8 grid grid-cols-2 gap-4 bg-slate-900/95 relative">
-                {/* Decorative BG elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-[#23f8ff]/5 rounded-full blur-[80px] -mr-16 -mt-16 pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] -ml-16 -mb-16 pointer-events-none" />
-
-                {/* Gold Card */}
-                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-yellow-500/40 transition-all group/card relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                    <div className="w-16 h-16 rounded-full bg-yellow-500 blur-xl" />
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Gold</span>
-                  </div>
-                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-yellow-400 transition-colors">
-                    {globalStats?.goldValue}
-                  </div>
-                  <div className="text-xs text-slate-500 font-mono">Harvested</div>
-                </div>
-
-                {/* Elixir Card */}
-                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-purple-500/40 transition-all group/card relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                    <div className="w-16 h-16 rounded-full bg-purple-500 blur-xl" />
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Elixir</span>
-                  </div>
-                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-purple-400 transition-colors">
-                    {globalStats?.elixirValue}
-                  </div>
-                  <div className="text-xs text-slate-500 font-mono">Harvested</div>
-                </div>
-
-                {/* Walls Card */}
-                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-[#23f8ff]/40 transition-all group/card relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                    <div className="w-16 h-16 rounded-full bg-[#23f8ff] blur-xl" />
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-[#23f8ff] animate-pulse" />
-                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Walls</span>
-                  </div>
-                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-[#23f8ff] transition-colors">
-                    {globalStats?.wallsValue}
-                  </div>
-                  <div className="text-xs text-slate-500 font-mono">Upgraded</div>
-                </div>
-
-                {/* Users Card */}
-                <div className="bg-slate-950/80 p-5 rounded-xl border border-slate-800 hover:border-green-500/40 transition-all group/card relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/card:opacity-20 transition-opacity">
-                    <div className="w-16 h-16 rounded-full bg-green-500 blur-xl" />
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">TOTAL RUNTIME</span>
-                  </div>
-                  <div className="text-2xl md:text-4xl font-bold text-white mb-1 group-hover/card:text-green-400 transition-colors">
-                    {globalStats?.runTimeValue}
-                  </div>
-                  <div className="text-xs text-slate-500 font-mono"></div>
-                </div>
-              </div>
+      {/* Navigation - Floating Island */}
+      <div className="fixed top-4 md:top-6 left-0 right-0 z-50 flex justify-center px-4 md:px-6 pointer-events-none transition-all">
+        <nav className={`pointer-events-auto w-full max-w-4xl bg-[#0a0a0a]/80 backdrop-blur-2xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between shadow-[0_20px_40px_-10px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-300 p-1.5 md:p-2 ${isMobileMenuOpen ? 'rounded-3xl' : 'rounded-full'}`}>
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-2 font-bold text-base md:text-xl tracking-tight text-white group cursor-pointer pl-2 md:pl-3">
+              <img src="/logo.png" alt="HarvestBot" className="w-7 h-7 md:w-8 md:h-8 rounded-full object-cover" />
+              <span>HarvestBot</span>
             </div>
             
-            {/* Decorative Glow */}
-            <div className="absolute inset-0 bg-[#23f8ff] blur-[90px] opacity-20 -z-10 transform translate-y-10 animate-pulse-slow" />
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* FEATURES GRID */}
-      <section id="features" className="py-24 bg-slate-900/50 relative scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <FadeIn direction="up">
-              <h2 className="text-3xl md:text-5xl font-bold mb-4">Why Harvest Bot?</h2>
-              <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                Designed to mimic human behavior while maximizing resource gain. Safe, fast, and efficient.
-              </p>
-            </FadeIn>
+            {/* Mobile Hamburger Toggle */}
+            <div className="flex items-center md:hidden pr-2">
+              <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1.5 text-neutral-400 hover:text-white transition-colors outline-none">
+                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+          
+          {/* Desktop Navigation Links */}
+          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-neutral-400">
+            <a href="#showcase" onClick={(e) => { e.preventDefault(); smoothScrollToId('showcase'); }} className="hover:text-white transition-colors">Showcase</a>
+            <a href="#features" onClick={(e) => { e.preventDefault(); smoothScrollToId('features'); }} className="hover:text-white transition-colors">Features</a>
+            <a href="#vouches" onClick={(e) => { e.preventDefault(); smoothScrollToId('vouches'); }} className="hover:text-white transition-colors">Vouches</a>
+            <a href="#pricing" onClick={(e) => { e.preventDefault(); smoothScrollToId('pricing'); }} className="hover:text-white transition-colors">Pricing</a>
+          </div>
+          
+          {/* Desktop CTA Button */}
+          <div className="hidden md:block">
+            <Button variant="primary" className="py-2.5! px-6! text-sm rounded-full! shadow-none" onClick={() => smoothScrollToId('pricing')}>
+              Get Started
+            </Button>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: <Sword className="w-6 h-6 text-yellow-400" />,
-                title: "Best Base Hunter",
-                desc: "Automatically identifies bases with full collectors for maximum loot with minimal troop cost."
-              },
-              {
-                icon: <Shield className="w-6 h-6 text-[#23f8ff]" />,
-                title: "Anti-Ban AI",
-                desc: "Uses randomized click delays, screen offsets, and human-like scrolling to bypass detection systems."
-              },
-              {
-                icon: <Layers className="w-6 h-6 text-blue-400" />,
-                title: "Multiple Army Styles",
-                desc: "Switch between different army compositions and attack strategies to match your preferred farming style."
-              },
-              {
-                icon: <BarChart3 className="w-6 h-6 text-purple-400" />,
-                title: "Loot Statistics",
-                desc: "Track your gold, elixir, and dark elixir gains per hour."
-              },
-              {
-                icon: <Clock className="w-6 h-6 text-orange-400" />,
-                title: "24/7 Running",
-                desc: "Runs nonstop with stable automation loops to keep farming active around the clock."
-              },
-              {
-                icon: <Cpu className="w-6 h-6 text-pink-400" />,
-                title: "Auto-Upgrade Walls",
-                desc: "Overflowing with resources? Harvest Bot can automatically dump excess loot into walls."
-              }
-            ].map((feature, idx) => (
-              <FadeIn key={idx} delay={idx * 150} direction="up">
-                <div className="h-full bg-slate-950 border border-slate-800 p-8 rounded-2xl hover:border-[#23f8ff]/30 hover:bg-slate-900 transition-all duration-300 group hover:-translate-y-2 hover:shadow-xl hover:shadow-[#23f8ff]/5">
-                  <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center mb-6 border border-slate-800 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 group-hover:border-[#23f8ff]/30">
-                    {feature.icon}
+          {/* Mobile Navigation Menu */}
+          <div className={`md:hidden flex flex-col items-center font-semibold text-sm text-neutral-400 transition-all duration-300 ${isMobileMenuOpen ? 'max-h-72 opacity-100 py-6 gap-4' : 'max-h-0 opacity-0 gap-0 py-0'}`}>
+            <a href="#showcase" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); smoothScrollToId('showcase'); }} className="hover:text-white transition-colors w-full text-center py-2">Showcase</a>
+            <a href="#features" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); smoothScrollToId('features'); }} className="hover:text-white transition-colors w-full text-center py-2">Features</a>
+            <a href="#vouches" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); smoothScrollToId('vouches'); }} className="hover:text-white transition-colors w-full text-center py-2">Vouches</a>
+            <a href="#pricing" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); smoothScrollToId('pricing'); }} className="hover:text-white transition-colors w-full text-center py-2">Pricing</a>
+            <Button variant="primary" className="py-2.5! px-8! mt-2 rounded-full! shadow-none w-fit" onClick={() => { smoothScrollToId('pricing'); setIsMobileMenuOpen(false); }}>
+              Get Started
+            </Button>
+          </div>
+        </nav>
+      </div>
+
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 md:pt-40 md:pb-24 px-4 md:px-6 overflow-hidden z-10">
+        
+        {/* Hero BG Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200%] max-w-300 h-[400px] md:h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(35,248,255,0.15),transparent_70%)] pointer-events-none" />
+        
+        <div className="max-w-5xl mx-auto text-center relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 md:px-4 md:py-1.5 rounded-full bg-white/2 border border-white/10 text-xs md:text-sm font-medium mb-6 md:mb-8 text-neutral-300 animate-fade-in-up backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <span className="flex h-2 w-2 rounded-full bg-[#23f8ff] animate-pulse-slow shadow-[0_0_8px_#23f8ff]"></span>
+            Used by {globalStats.usersValue} Chiefs Worldwide
+          </div>
+          
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-[1.1] mb-5 md:mb-6 animate-fade-in-up delay-100">
+            Max Your Base <br className="hidden md:block" />
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-[#23f8ff] via-[#60efff] to-[#0061ff] animate-gradient drop-shadow-sm">
+              While You Sleep
+            </span>
+          </h1>
+          
+          <p className="text-base sm:text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto mb-10 md:mb-12 leading-relaxed animate-fade-in-up delay-200 px-2">
+            The ultimate Clash of Clans automation tool. Auto-farm millions of resources, keep your walls upgrading, and never miss a builder cycle again.
+          </p>
+
+          {/* Stats Board */}
+          <div className="max-w-3xl mx-auto mb-10 md:mb-12 animate-fade-in-up delay-300">
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <div className="h-px bg-linear-to-r from-transparent to-white/10 w-8 sm:w-12 md:w-24"></div>
+              <span className="text-[10px] md:text-xs font-bold text-neutral-500 uppercase tracking-[0.2em]">Global Stats</span>
+              <div className="h-px bg-linear-to-l from-transparent to-white/10 w-8 sm:w-12 md:w-24"></div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              {[
+                { icon: Coins, value: globalStats.goldValue, label: "Total Gold", color: "text-yellow-400", bg: "bg-yellow-400/5", border: "border-yellow-400/10" },
+                { icon: Droplets, value: globalStats.elixirValue, label: "Total Elixir", color: "text-pink-500", bg: "bg-pink-500/5", border: "border-pink-500/10" },
+                { icon: Layers, value: globalStats.wallsValue, label: "Walls Upgraded", color: "text-neutral-300", bg: "bg-neutral-500/5", border: "border-neutral-500/10" },
+                { icon: Clock, value: globalStats.runTimeValue, label: "Runtime", color: "text-[#23f8ff]", bg: "bg-[#23f8ff]/5", border: "border-[#23f8ff]/10" }
+              ].map((stat, idx) => (
+                <div 
+                  key={idx}
+                  className={`group ${stat.bg} ${stat.border} border rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center backdrop-blur-md transition-all duration-300 hover:bg-white/5 hover:-translate-y-1 hover:shadow-lg`}
+                >
+                  <stat.icon className={`w-4 h-4 md:w-5 md:h-5 ${stat.color} mb-2 group-hover:scale-110 transition-transform duration-300`} />
+                  <div className="text-xl md:text-2xl font-bold text-white mb-1 tracking-tight">
+                    <CountUp end={stat.value} duration={2000} />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 text-white group-hover:text-[#23f8ff] transition-colors">{feature.title}</h3>
-                  <p className="text-slate-400 leading-relaxed">
-                    {feature.desc}
-                  </p>
+                  <div className="text-[9px] md:text-[10px] text-neutral-500 font-bold uppercase tracking-wider text-center">
+                    {stat.label}
+                  </div>
                 </div>
-              </FadeIn>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          <div className="animate-fade-in-up delay-400">
+            <Button variant="primary" className="text-base md:text-lg px-6 py-3 md:px-8 md:py-4 h-auto group" onClick={() => smoothScrollToId('pricing')}>
+              View Pricing Plans
+              <ChevronRight className="w-4 h-4 md:w-5 md:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-24 relative overflow-hidden scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="text-center mb-16">
-            <FadeIn direction="up">
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Complete Control <br /> 
-                <span className="text-[#23f8ff]">Zero Coding Required</span>
-              </h2>
-              <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                Get up and running in minutes with our streamlined setup process.
-              </p>
-            </FadeIn>
+      {/* Showcase Section */}
+      <section ref={showcaseRef} id="showcase" className="relative py-16 md:py-24 px-4 md:px-6 border-t border-white/5 z-10 bg-[#0a0a0a]">
+        <div className="max-w-6xl mx-auto">
+          <div className={`text-center mb-12 md:mb-16 ${showcaseInView ? 'animate-smooth-appear' : 'opacity-0'}`}>
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">See Harvest Bot in Action</h2>
+            <p className="text-sm sm:text-base md:text-lg text-neutral-400 max-w-2xl mx-auto px-4">
+              Explore the powerful mechanics working silently behind the scenes.
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { title: "Install Emulator & Bot", text: "Works perfectly with Bluestacks, LDPlayer. One-click setup wizard included." },
-              { title: "Select Strategy", text: "Choose from Barch, Sneaky Goblins, or Electro Dragons / Normal Dragons" },
-              { title: "Set Loot Criteria", text: "Tell the bot to only attack bases with over 500k Gold/Elixir or specific Dark Elixir amounts." },
-              { title: "Start Farming", text: "Sit back and watch your storages fill up. The bot handles attacking, resource collection, and wall upgrades." }
-            ].map((step, idx) => (
-              <FadeIn key={idx} delay={idx * 150} direction="up" className="h-full">
-                <div className="h-full bg-slate-900/50 border border-slate-800 p-8 rounded-2xl hover:border-[#23f8ff]/30 transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-[0.03] transform translate-x-1/4 -translate-y-1/4">
-                    <Bot size={120} />
+          <div className={`grid lg:grid-cols-12 gap-8 lg:gap-12 items-center ${showcaseInView ? 'animate-smooth-appear delay-200' : 'opacity-0'}`}>
+            
+            {/* Interactive Tabs */}
+            <div className="lg:col-span-4 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:flex lg:flex-col gap-2 sm:gap-3 pb-4 lg:pb-0">
+              {SHOWCASE_FEATURES.map((feature) => {
+                const isActive = activeShowcase === feature.id;
+                return (
+                  <button
+                    key={feature.id}
+                    onClick={() => setActiveShowcase(feature.id)}
+                    className={`text-left p-3 sm:p-4 md:p-5 rounded-2xl border transition-all duration-300 group ${
+                      isActive 
+                        ? 'bg-white/5 border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]' 
+                        : 'bg-transparent border-transparent hover:bg-white/2 hover:border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-colors shadow-sm shrink-0 ${
+                        isActive ? 'bg-[#23f8ff]/10 text-[#23f8ff] border border-[#23f8ff]/20' : 'bg-white/5 text-neutral-500 border border-white/5 group-hover:text-neutral-300 group-hover:bg-white/10'
+                      }`}>
+                        <feature.icon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                      </div>
+                      <h3 className={`font-bold text-xs sm:text-base md:text-lg transition-colors tracking-tight line-clamp-2 ${isActive ? 'text-white' : 'text-neutral-400 group-hover:text-white'}`}>
+                        {feature.title}
+                      </h3>
+                    </div>
+                    {/* Desktop detailed description (expands on active) */}
+                    <div className={`hidden lg:grid transition-all duration-300 ease-in-out ${isActive ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                      <p className="text-sm text-neutral-400 leading-relaxed overflow-hidden">
+                        {feature.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* App Window Mockup */}
+            <div className="lg:col-span-8 w-full animate-fade-in-up delay-200">
+              <div className="w-full aspect-square sm:aspect-video lg:aspect-[16/10] rounded-2xl border border-white/10 bg-[#050505] overflow-hidden relative flex flex-col shadow-2xl">
+                
+                {/* Window Header */}
+                <div className="h-10 md:h-12 border-b border-white/10 bg-white/2 flex items-center px-4 gap-2 shrink-0">
+                  <div className="flex gap-2">
+                    <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-red-500/80"></div>
+                    <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-yellow-500/80"></div>
+                    <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-green-500/80"></div>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-[#23f8ff]/10 border border-[#23f8ff]/30 text-[#23f8ff] flex items-center justify-center font-bold text-xl mb-6 group-hover:bg-[#23f8ff] group-hover:text-black transition-all duration-300 shadow-[0_0_15px_rgba(35,248,255,0.1)]">
-                    {idx + 1}
-                  </div>
-                  <h4 className="text-xl font-bold text-white mb-3 group-hover:text-[#23f8ff] transition-colors relative z-10">{step.title}</h4>
-                  <p className="text-slate-400 leading-relaxed relative z-10">{step.text}</p>
+                    <div className="flex-1 flex items-center justify-center text-xs md:text-sm font-medium text-neutral-500">
+                      
+                    </div>
                 </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
+                
+                {/* Window Body */}
+                <div className="flex-1 relative bg-neutral-950 p-6 flex items-center justify-center overflow-hidden">
+                  
+                  {/* Tech Grid Background */}
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] md:bg-[size:48px_48px] pointer-events-none" />
+                  
+                  {/* Dynamic Glowing Orb behind content */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 md:w-64 md:h-64 bg-[#23f8ff]/10 rounded-full blur-[60px] md:blur-[80px] pointer-events-none transition-all duration-700"></div>
 
-      {/* FEEDBACKS */}
-      <section id="feedbacks" className="py-24 bg-slate-900/30 relative scroll-mt-24 overflow-hidden">
-        <style>{`
-          @keyframes vouchIn {
-            0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
-            100% { opacity: 1; transform: translateY(0) scale(1); }
-          }
-          .animate-vouchIn { animation: vouchIn .6s ease-out both; }
-        `}</style>
-
-        <div className="max-w-7xl mx-auto px-6 mb-16">
-          <div className="text-center">
-            <FadeIn direction="up">
-              <h2 className="text-3xl md:text-5xl font-bold mb-4">Chiefs Love Harvest Bot</h2>
-              <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-                Live vouches pulled from our Discord community.
-              </p>
-            </FadeIn>
-          </div>
-        </div>
-
-        {/* Infinite Scroll Container */}
-        <div className="max-w-7xl mx-auto px-6">
-        <div className="relative w-full overflow-hidden mask-linear-gradient"
-        style={{
-              WebkitMaskImage:
-                "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)",
-              maskImage:
-                "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)",
-            }}> 
-           {/* Fade masks on edges */}
-           <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none"></div>
-           <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none"></div>
-
-            <div className="flex animate-scroll">
-              {/* Render items twice for infinite loop */}
-              {[...Array(2)].map((_, listIdx) => (
-                <div key={listIdx} className="flex gap-6 px-3"> 
-                  {(vouchesLoading ? Array.from({ length: 6 }) : vouches).map((v, idx) => {
-                    const isSkeleton = vouchesLoading;
-                    // Need unique keys across the two lists
-                    const key = isSkeleton ? `sk-${listIdx}-${idx}` : `vouch-${listIdx}-${(v as Vouch).id}`;
-                    const item = v as Vouch;
-
+                  {SHOWCASE_FEATURES.map((feature) => {
+                    if (feature.id !== activeShowcase) return null;
                     return (
-                      <div
-                        key={key}
-                        className="w-[350px] md:w-[450px] flex-shrink-0"
-                      >
-                        <div
-                          className={[
-                            "h-full rounded-2xl border border-slate-800 bg-slate-950/80 backdrop-blur p-6",
-                            "hover:border-[#23f8ff]/30 transition-all duration-300",
-                            !isSkeleton && newIds.has(item.id) ? "animate-vouchIn" : "",
-                          ].join(" ")}
-                        >
-
-                          {isSkeleton ? (
-                            <div className="animate-pulse">
-                              <div className="flex items-center gap-4 mb-4">
-                                <div className="w-11 h-11 rounded-full bg-slate-800" />
-                                <div className="flex-1">
-                                  <div className="h-3 w-32 bg-slate-800 rounded mb-2" />
-                                  <div className="h-3 w-24 bg-slate-800 rounded" />
-                                </div>
-                              </div>
-                              <div className="h-3 w-full bg-slate-800 rounded mb-2" />
-                              <div className="h-3 w-5/6 bg-slate-800 rounded mb-2" />
-                              <div className="h-3 w-3/4 bg-slate-800 rounded" />
+                      <div key={feature.id} className="relative z-10 flex flex-col items-center text-center animate-fade-in-up w-full max-w-sm px-4">
+                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white/3 border border-white/10 flex items-center justify-center mb-6 shadow-xl backdrop-blur-md">
+                           <feature.icon className="w-8 h-8 md:w-10 md:h-10 text-[#23f8ff]" />
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3">{feature.title}</h3>
+                        
+                        {/* Show desc on mobile inside the window since tabs don't show it */}
+                        <p className="text-neutral-400 text-xs md:text-sm leading-relaxed lg:hidden mb-6">
+                          {feature.desc}
+                        </p>
+                        
+                        {/* Abstract animated UI blocks representing activity */}
+                        <div className="flex flex-col gap-3 w-full opacity-60">
+                          <div className="h-2 md:h-2.5 bg-white/5 rounded-full overflow-hidden w-3/4 mx-auto">
+                            <div className="h-full bg-[#23f8ff] w-full animate-[pulseSlow_2s_ease-in-out_infinite]"></div>
+                          </div>
+                          <div className="flex gap-3 justify-center w-full">
+                            <div className="h-2 md:h-2.5 bg-white/5 rounded-full overflow-hidden w-1/3">
+                              <div className="h-full bg-[#23f8ff]/60 w-full animate-[pulseSlow_3s_ease-in-out_infinite_0.5s]"></div>
                             </div>
-                          ) : (
-                            <>
-                              <div className="flex items-center gap-4 mb-4">
-                                <img
-                                  src={item.avatar}
-                                  alt={item.name}
-                                  className="w-11 h-11 rounded-full border border-slate-800 object-cover"
-                                />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-bold text-white">{item.name}</span>
-                                    <span className="text-slate-500 text-sm truncate">@{item.username}</span>
-                                    <span className="text-slate-600 text-xs">•</span>
-                                    <span className="text-slate-500 text-xs">{timeAgo(item.createdAt)} ago</span>
-                                  </div>
-                                  <div className="mt-1 inline-flex items-center rounded-full border border-slate-800 bg-slate-900/60 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
-                                    Discord Vouch
-                                  </div>
-                                </div>
-                              </div>
-
-                              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap break-words">
-                                {item.text}
-                              </p>
-                            </>
-                          )}
+                            <div className="h-2 md:h-2.5 bg-white/5 rounded-full overflow-hidden w-1/4">
+                              <div className="h-full bg-[#23f8ff]/80 w-full animate-[pulseSlow_2.5s_ease-in-out_infinite_1s]"></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              ))}
+
+              </div>
             </div>
-        </div>
+
+          </div>
         </div>
       </section>
 
-      {/* PRICING */}
-      <section id="pricing" className="py-24 bg-slate-950 border-t border-slate-900 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">Simple Pricing</h2>
-            <p className="text-slate-400">Choose the plan that fits your village needs.</p>
+      {/* Features Section */}
+      <section ref={featuresRef} id="features" className="relative py-16 md:py-24 px-4 md:px-6 border-t border-white/5 z-10">
+        <div className="absolute inset-0 bg-neutral-950/40 backdrop-blur-sm -z-10" />
+        <div className="max-w-6xl mx-auto">
+          <div className={`text-center mb-12 md:mb-16 ${featuresInView ? 'animate-smooth-appear' : 'opacity-0'}`}>
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">Why Harvest Bot?</h2>
+            <p className="text-sm sm:text-base md:text-lg text-neutral-400 max-w-2xl mx-auto px-4">
+              Designed to mimic human behavior while maximizing resource gain. Safe, fast, and efficient.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8">
-            {plans.map((plan, idx) => (
-              <FadeIn
-                key={idx}
-                delay={idx * 150}
-                direction="up"
-                className={`relative h-full ${plan.name === "Lifetime" ? "lg:col-start-2" : ""}`}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {[
+              { icon: Target, title: "Best Base Hunter", desc: "Automatically identifies bases with full collectors for maximum loot with minimal troop cost." },
+              { icon: ShieldCheck, title: "Anti-Ban AI", desc: "Uses randomized click delays, screen offsets, and human-like scrolling to bypass detection systems." },
+              { icon: Swords, title: "Multiple Army Styles", desc: "Switch between different army compositions and attack strategies to match your preferred farming style." },
+              { icon: BarChart3, title: "Loot Statistics", desc: "Track your gold, elixir, and dark elixir gains per hour directly on your dashboard." },
+              { icon: Timer, title: "24/7 Running", desc: "Runs nonstop with stable automation loops to keep farming active around the clock." },
+              { icon: ArrowUpCircle, title: "Auto-Upgrade Walls", desc: "Overflowing with resources? Harvest Bot can automatically dump excess loot into walls." },
+            ].map((feat, idx) => (
+              <div 
+                key={idx} 
+                className={`group p-6 md:p-8 rounded-2xl bg-white/2 border border-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:bg-white/4 hover:border-white/10 hover:-translate-y-1 transition-all duration-300 ${featuresInView ? 'animate-smooth-appear' : 'opacity-0'}`}
+                style={{ animationDelay: featuresInView ? `${idx * 80}ms` : '0ms' }}
               >
-                <div
-                  className={`h-full p-8 rounded-2xl flex flex-col transition-all duration-300 ${
-                    plan.popular
-                      ? "bg-slate-900 border-2 border-[#23f8ff] shadow-[0_0_30px_rgba(35,248,255,0.15)] transform md:-translate-y-4 hover:shadow-[0_0_50px_rgba(35,248,255,0.25)]"
-                      : "bg-slate-950 border border-slate-800 hover:bg-slate-900 hover:border-slate-700"
-                  }`}
-                >
-                  {plan.popular && (
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#23f8ff] text-slate-900 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
-                      Best Value
-                    </div>
-                  )}
-
-                  <div className="mb-8">
-                    <h3 className="text-lg font-medium text-slate-400 mb-2">{plan.name}</h3>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold text-white">{plan.price}</span>
-                      {plan.period && <span className="text-slate-500">{plan.period}</span>}
-                    </div>
-                  </div>
-
-                  <ul className="space-y-4 mb-8 flex-1">
-                    {plan.feat.map((f, i) => (
-                      <li key={i} className="flex items-center gap-3 text-slate-300 text-sm">
-                        <CheckCircle className={`w-4 h-4 ${plan.popular ? "text-[#23f8ff]" : "text-[#23f8ff]"}`} />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button
-                    onClick={() => goToVerification(plan)}
-                    className={`w-full py-3 rounded-lg font-bold transition-all text-center ${
-                      plan.popular
-                        ? "bg-[#23f8ff] hover:bg-[#1ac2c7] text-slate-900 shadow-lg hover:shadow-[#23f8ff]/25"
-                        : "bg-slate-800 hover:bg-slate-700 text-white hover:shadow-lg"
-                    }`}
-                  >
-                    Choose {plan.name}
-                  </button>
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center mb-4 md:mb-6 group-hover:bg-[#23f8ff]/10 group-hover:border-[#23f8ff]/20 transition-colors duration-300 shadow-sm">
+                  <feat.icon className="w-5 h-5 md:w-6 md:h-6 text-neutral-400 group-hover:text-[#23f8ff] transition-colors duration-300" />
                 </div>
-              </FadeIn>
+                <h3 className="text-lg md:text-xl font-bold text-white mb-2 md:mb-3 tracking-tight">{feat.title}</h3>
+                <p className="text-neutral-400 leading-relaxed text-xs md:text-sm">{feat.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Testimonials */}
+      <section ref={vouchesRef} id="vouches" className="relative py-16 md:py-24 overflow-hidden z-10 border-t border-white/5">
+        <div className={`max-w-7xl mx-auto px-4 md:px-6 mb-10 md:mb-12 text-center ${vouchesInView ? 'animate-smooth-appear' : 'opacity-0'}`}>
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">Chiefs Love Harvest Bot</h2>
+          <p className="text-sm sm:text-base md:text-lg text-neutral-400 max-w-2xl mx-auto">
+            Live vouches pulled from our Discord community.
+          </p>
+        </div>
 
-      {/* FOOTER */}
-      <footer className="bg-slate-950 pt-20 pb-10 border-t border-slate-900">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-4 gap-12 mb-16">
-            <div className="col-span-2">
-              <div className="flex items-center gap-2 font-bold text-xl mb-6">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center">
-                  <img
-                    src="/logo.png"
-                    alt="HarvestBot"
-                    className="h-9 md:h-10 w-auto object-contain"
-                  />
+        <div className={`relative flex overflow-hidden w-full group mask-[linear-gradient(to_right,transparent,black_5%,black_95%,transparent)] md:mask-[linear-gradient(to_right,transparent,black_10%,black_90%,transparent)] ${vouchesInView ? 'animate-smooth-appear delay-200' : 'opacity-0'}`}>
+          <div className="flex gap-4 md:gap-6 animate-scroll w-max pr-4 md:pr-6">
+            {[...vouches, ...vouches].map((vouch, idx) => (
+              <div 
+                key={`${vouch.id}-${idx}`} 
+                className="w-[280px] sm:w-[320px] md:w-[400px] shrink-0 p-5 md:p-6 rounded-2xl bg-white/2 border border-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] flex flex-col justify-between hover:bg-white/4 transition-colors duration-300 transform-gpu"
+                style={{ WebkitBackfaceVisibility: 'hidden', backfaceVisibility: 'hidden', WebkitPerspective: 1000, perspective: 1000 }}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <img src={vouch.avatar} alt={vouch.name} className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-neutral-900 border border-white/10" />
+                      <div>
+                        <div className="text-xs md:text-sm font-bold text-white truncate max-w-[100px] sm:max-w-[120px] md:max-w-[150px]">{vouch.name}</div>
+                        <div className="text-[10px] md:text-xs text-neutral-500 font-medium truncate max-w-[100px] sm:max-w-[120px] md:max-w-[150px]">@{vouch.username}</div>
+                      </div>
+                    </div>
+                    <div className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider text-neutral-400 bg-white/5 border border-white/5 px-2 py-1 rounded-md flex items-center gap-1.5 shrink-0">
+                      <MessageSquareQuote className="w-3 h-3 hidden sm:block" />
+                      Discord
+                    </div>
+                  </div>
+                  <p className="text-neutral-300 text-xs md:text-sm leading-relaxed whitespace-pre-wrap line-clamp-5">
+                    {vouch.text}
+                  </p>
                 </div>
-                <span>HarvestBot</span>
+                <div className="mt-5 md:mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-[10px] md:text-xs text-neutral-500 font-medium">
+                  <span className="flex items-center gap-1">
+                    <Star className="w-3 h-3 md:w-3.5 md:h-3.5 fill-[#23f8ff] text-[#23f8ff]" />
+                    <Star className="w-3 h-3 md:w-3.5 md:h-3.5 fill-[#23f8ff] text-[#23f8ff]" />
+                    <Star className="w-3 h-3 md:w-3.5 md:h-3.5 fill-[#23f8ff] text-[#23f8ff]" />
+                    <Star className="w-3 h-3 md:w-3.5 md:h-3.5 fill-[#23f8ff] text-[#23f8ff]" />
+                    <Star className="w-3 h-3 md:w-3.5 md:h-3.5 fill-[#23f8ff] text-[#23f8ff]" />
+                  </span>
+                  <span>{formatVouchDate(vouch.createdAt)}</span>
+                </div>
               </div>
-              <p className="text-slate-500 max-w-sm">
-                The #1 Automation Tool for Clash of Clans. Helping Chiefs max their bases faster since 2025. Not affiliated with Supercell.
-              </p>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section ref={pricingRef} id="pricing" className="relative py-16 md:py-24 px-4 md:px-6 border-t border-white/5 z-10">
+        <div className="absolute inset-0 bg-neutral-950/60 backdrop-blur-md -z-10" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[400px] bg-[radial-gradient(ellipse_at_bottom,rgba(35,248,255,0.06)_0%,rgba(0,0,0,0)_70%)] pointer-events-none" />
+
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className={`text-center mb-8 md:mb-10 ${pricingInView ? 'animate-smooth-appear' : 'opacity-0'}`}>
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">Simple Pricing</h2>
+            <p className="text-sm sm:text-base md:text-lg text-neutral-400 max-w-2xl mx-auto px-4">
+              Choose the plan that fits your village needs.
+            </p>
+          </div>
+
+          {/* Pricing Toggle */}
+          <div className={`flex justify-center mb-10 md:mb-12 ${pricingInView ? 'animate-smooth-appear delay-100' : 'opacity-0'}`}>
+            <div className="relative inline-flex bg-white/3 border border-white/10 rounded-full p-1 shadow-inner mt-4">
+              {/* Toggle Highlight */}
+              <div 
+                className={`absolute inset-y-1 w-[120px] md:w-[130px] bg-white/10 rounded-full shadow-sm border border-white/10 transition-transform duration-300 ease-out ${
+                  billingCycle === 'lifetime' ? 'translate-x-[120px] md:translate-x-[130px]' : 'translate-x-0'
+                }`}
+              />
+              
+              <button 
+                onClick={() => setBillingCycle('subscription')}
+                className={`relative z-10 w-[120px] md:w-[130px] py-2 md:py-2.5 text-xs md:text-sm font-bold tracking-wide transition-colors duration-200 ${
+                  billingCycle === 'subscription' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                Subscriptions
+              </button>
+              <button 
+                onClick={() => setBillingCycle('lifetime')}
+                className={`relative z-10 w-[120px] md:w-[130px] py-2 md:py-2.5 text-xs md:text-sm font-bold tracking-wide transition-colors duration-200 flex items-center justify-center gap-1 ${
+                  billingCycle === 'lifetime' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                Lifetime
+                <span className="absolute -top-3 -right-2 md:-right-4 px-2 md:px-2.5 py-0.5 bg-linear-to-r from-[#23f8ff] to-[#00c6ff] text-neutral-950 text-[9px] md:text-[10px] font-extrabold tracking-wide uppercase rounded-full shadow-[0_2px_10px_rgba(35,248,255,0.4)] border border-white/20">
+                  Save 60%
+                </span>
+              </button>
             </div>
+          </div>
+
+          <div className={`grid gap-4 md:gap-6 mx-auto transition-all duration-300 ${billingCycle === 'subscription' ? 'sm:grid-cols-2 md:grid-cols-3 max-w-5xl' : 'max-w-md'}`}>
+            {PRICING_PLANS.filter(plan => billingCycle === 'subscription' ? plan.id !== 'lifetime' : plan.id === 'lifetime').map((plan, idx) => (
+              <div 
+                key={plan.id} 
+                className={`relative p-6 md:p-8 rounded-2xl flex flex-col transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${pricingInView ? 'animate-smooth-appear' : 'opacity-0'} ${
+                  plan.recommended 
+                    ? 'bg-neutral-900 border border-[#23f8ff]/50 shadow-[0_0_30px_rgba(35,248,255,0.1)] md:-translate-y-2' 
+                    : 'bg-white/2 border border-white/5 hover:border-white/10 hover:bg-white/4'
+                }`}
+                style={{ animationDelay: pricingInView ? `${idx * 100}ms` : '0ms' }}
+              >
+                {plan.recommended && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 md:px-4 py-1 md:py-1.5 bg-linear-to-r from-[#23f8ff] to-[#00c6ff] text-neutral-950 text-[9px] md:text-[10px] font-extrabold uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(35,248,255,0.5)] border border-white/20 whitespace-nowrap">
+                    Best Value
+                  </div>
+                )}
+                <div className="mb-5 md:mb-6">
+                  <h3 className="text-base md:text-lg font-bold text-white mb-2 tracking-tight">{plan.name}</h3>
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{plan.price}</span>
+                    <span className="text-xs md:text-sm text-neutral-500 mb-1 font-medium">/ {plan.duration}</span>
+                  </div>
+                </div>
+                
+                <ul className="space-y-3 md:space-y-4 mb-6 md:mb-8 grow">
+                  {plan.features.map((feat, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 text-xs md:text-sm text-neutral-300 font-medium">
+                      <Check className={`w-4 h-4 md:w-5 md:h-5 shrink-0 ${plan.recommended ? 'text-[#23f8ff]' : 'text-neutral-500'}`} />
+                      {feat}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button 
+                  variant={plan.recommended ? 'primary' : 'secondary'} 
+                  className="w-full shadow-none text-sm md:text-base py-3"
+                  onClick={() => onCheckout(plan)}
+                >
+                  Choose {plan.name}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative pt-16 md:pt-20 pb-8 md:pb-10 px-6 border-t border-white/5 z-10 bg-[#0a0a0a]">
+        <div className="absolute inset-0 bg-linear-to-b from-transparent to-[#23f8ff]/2 pointer-events-none" />
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10 lg:gap-6 mb-12 md:mb-16">
             
+            <div className="sm:col-span-2 lg:col-span-2">
+              <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-white mb-4 md:mb-5 cursor-pointer">
+                <img src="/logo.png" alt="HarvestBot" className="w-8 h-8 rounded-full object-cover" />
+                HarvestBot
+              </div>
+              <p className="text-neutral-400 text-xs md:text-sm leading-relaxed max-w-sm mb-5 md:mb-6 font-medium">
+                The #1 Automation Tool for Clash of Clans. Helping Chiefs max their bases faster since 2025. Save time, farm smart, and dominate the leaderboards.
+              </p>
+              <div className="flex items-center gap-3">
+                <a href="#" className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/3 border border-white/5 flex items-center justify-center text-neutral-400 hover:text-[#23f8ff] hover:bg-[#23f8ff]/10 hover:border-[#23f8ff]/30 transition-all duration-300">
+                   <MessageSquare className="w-4 h-4" />
+                </a>
+                <a href="#" className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/3 border border-white/5 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all duration-300">
+                   <Twitter className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+
             <div>
-              <h4 className="text-white font-bold mb-6">Links</h4>
-              <ul className="space-y-4 text-slate-500 text-sm">
-                <li><a key="features" href="#features" onClick={(e) => scrollToSection(e, "#features")} className="hover:text-[#23f8ff] transition-colors">Features</a></li>
-                <li><a href="#how-it-works" onClick={(e) => scrollToSection(e, "#how-it-works")} className="hover:text-[#23f8ff] transition-colors">How it works</a></li>
-                <li><a href="#feedbacks" onClick={(e) => scrollToSection(e, "#feedbacks")} className="hover:text-[#23f8ff] transition-colors">Feedbacks</a></li>
-                <li><a href="#pricing" onClick={(e) => scrollToSection(e, "#pricing")} className="hover:text-[#23f8ff] transition-colors">Pricing</a></li>
+              <h3 className="text-white font-bold mb-4 md:mb-5 text-sm tracking-wide">Product</h3>
+              <ul className="space-y-3 md:space-y-3.5">
+                <li><a href="#features" className="text-xs md:text-sm text-neutral-500 hover:text-[#23f8ff] transition-colors font-medium">Features</a></li>
+                <li><a href="#pricing" className="text-xs md:text-sm text-neutral-500 hover:text-[#23f8ff] transition-colors font-medium">Pricing</a></li>
+                <li><a href="#vouches" className="text-xs md:text-sm text-neutral-500 hover:text-[#23f8ff] transition-colors font-medium">Testimonials</a></li>
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-[#23f8ff] transition-colors font-medium">Changelog</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-white font-bold mb-4 md:mb-5 text-sm tracking-wide">Support</h3>
+              <ul className="space-y-3 md:space-y-3.5">
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Discord Server</a></li>
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Documentation</a></li>
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">FAQ</a></li>
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Contact Us</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-white font-bold mb-4 md:mb-5 text-sm tracking-wide">Legal</h3>
+              <ul className="space-y-3 md:space-y-3.5">
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Terms of Service</a></li>
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Privacy Policy</a></li>
+                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Refund Policy</a></li>
               </ul>
             </div>
             
           </div>
-          
-          <div className="border-t border-slate-900 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-slate-600 text-sm">
-            <p>© <span>{new Date().getFullYear()}</span> Harvest Bot Inc. All rights reserved.</p>
-            <div className="flex gap-6">
-              <a href="https://www.youtube.com/@harvest-bot" className="hover:text-[#23f8ff]">Youtube</a>
-              <a href="https://discord.com/invite/ymj4rEHpEV" className="hover:text-[#23f8ff]">Discord</a>
-            </div>
+
+          <div className="pt-6 md:pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6">
+            <p className="text-[10px] md:text-xs text-neutral-600 font-medium shrink-0 order-2 md:order-1">
+              © {new Date().getFullYear()} HarvestBot. All rights reserved.
+            </p>
+            <p className="text-[9px] md:text-[10px] lg:text-xs text-neutral-600 font-medium text-center md:text-right max-w-2xl leading-relaxed order-1 md:order-2">
+              This material is unofficial and is not endorsed by Supercell. For more information see Supercell's Fan Content Policy: <a href="https://supercell.com/en/fan-content-policy/" className="hover:text-neutral-400 transition-colors underline underline-offset-2">www.supercell.com/fan-content-policy</a>.
+            </p>
           </div>
         </div>
       </footer>
     </div>
   );
+}
+
+// --- CHECKOUT PAGE COMPONENT ---
+// Note: Checkout page has been moved to app/payment/page.tsx
+// Access it at /payment?plan=<planname>&payment=<method>
+
+export default function Page() {
+  // If Discord OAuth redirected to "/" with ?code & ?state, bounce to the
+  // original page (carried in `state`) so its callback handler can finish.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const stateParam = params.get("state");
+    if (!code || !stateParam) return;
+    try {
+      const target = new URL(stateParam, window.location.origin);
+      if (target.origin !== window.location.origin) return;
+      target.searchParams.set("code", code);
+      target.searchParams.set("state", stateParam);
+      window.location.replace(target.toString());
+    } catch {
+      // Ignore invalid state values.
+    }
+  }, []);
+
+  const handleCheckout = (plan: any) => {
+    const planName = plan.name?.toLowerCase().replace(/[^a-z0-9]/g, '') || plan.id;
+    const price = typeof plan.price === 'string' ? plan.price.replace('$', '') : plan.price;
+    window.location.href = `/payment?plan=${planName}&payment=binance_pay`;
+  };
+
+  return <LandingPage onCheckout={handleCheckout} />;
 }
