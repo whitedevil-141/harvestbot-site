@@ -30,7 +30,8 @@ import {
   Twitter,
   MessageSquare,
   Menu,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { Stats } from 'fs';
 
@@ -490,11 +491,19 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: any) => void }) {
             </div>
           </div>
 
-          <div className="animate-fade-in-up delay-400">
+          <div className="animate-fade-in-up delay-400 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button variant="primary" className="text-base md:text-lg px-6 py-3 md:px-8 md:py-4 h-auto group" onClick={() => smoothScrollToId('pricing')}>
               View Pricing Plans
               <ChevronRight className="w-4 h-4 md:w-5 md:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
+            <a
+              href="/download/setup.exe"
+              download
+              className="relative overflow-hidden inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-base font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm transition-all duration-300 hover:border-white/20 hover:bg-white/10 active:scale-[0.98] md:px-8 md:py-4 md:text-lg group"
+            >
+              Download
+              <Download className="ml-2 h-4 w-4 transition-transform group-hover:translate-y-0.5 md:h-5 md:w-5" />
+            </a>
           </div>
         </div>
       </section>
