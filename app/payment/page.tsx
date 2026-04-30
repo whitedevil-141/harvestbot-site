@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { 
   ArrowLeft,
   ShieldCheck,
@@ -211,26 +212,6 @@ const extractLtcQuote = (data: unknown) => {
   return null;
 };
 
-const resolveInitialPlanId = (incomingPlan: any) => {
-  if (!incomingPlan) return PLAN_OPTIONS[0].id;
-  const planLabel = String(incomingPlan.name ?? incomingPlan.label ?? incomingPlan.id ?? "");
-  const normalized = normalizePlanToken(planLabel);
-  const numericPrice = Number(String(incomingPlan.price ?? "").replace(/[^0-9.]/g, ""));
-  const matched = PLAN_OPTIONS.find((p) => {
-    if (numericPrice && numericPrice === p.price) return true;
-    if (
-      normalized &&
-      (normalizePlanToken(p.label) === normalized ||
-        normalizePlanToken(p.id) === normalized ||
-        p.aliases.some((a) => normalizePlanToken(a) === normalized))
-    ) {
-      return true;
-    }
-    return false;
-  });
-  return matched?.id ?? PLAN_OPTIONS[0].id;
-};
-
 // --- CHECKOUT PAGE COMPONENT ---
 
 function CheckoutPage() {
@@ -273,9 +254,9 @@ function CheckoutPage() {
     return "USDT";
   });
   
-  const [discordId, setDiscordId] = useState<string | null>(null);
-  const [discordName, setDiscordName] = useState<string | null>(null);
-  const [discordAvatar, setDiscordAvatar] = useState<string | null>(null);
+  const [discordId, setDiscordId] = useState<string | null>(() => getStoredDiscordId());
+  const [discordName, setDiscordName] = useState<string | null>(() => getStoredDiscordName());
+  const [discordAvatar, setDiscordAvatar] = useState<string | null>(() => getStoredDiscordAvatar());
   const [orderId, setOrderId] = useState("");
   const [redeemCode, setRedeemCode] = useState("");
   const [txId, setTxId] = useState("");
@@ -313,13 +294,6 @@ function CheckoutPage() {
     return url.toString();
   };
 
-  // Hydrate Discord identity from localStorage
-  useEffect(() => {
-    setDiscordId(getStoredDiscordId());
-    setDiscordName(getStoredDiscordName());
-    setDiscordAvatar(getStoredDiscordAvatar());
-  }, []);
-
   // Handle Discord OAuth callback (?code=) or ?discord_id= directly.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -333,15 +307,15 @@ function CheckoutPage() {
       if (storedId && storedId !== discordParam) {
         localStorage.removeItem("discord_name");
         localStorage.removeItem("discord_avatar");
-        setDiscordName(null);
-        setDiscordAvatar(null);
       }
       localStorage.setItem("discord_id", discordParam);
-      setDiscordId(discordParam);
       setOptionalStorageValue("discord_name", discordNameParam);
       setOptionalStorageValue("discord_avatar", discordAvatarParam);
-      setDiscordName(discordNameParam || null);
-      setDiscordAvatar(discordAvatarParam || null);
+      queueMicrotask(() => {
+        setDiscordId(discordParam);
+        setDiscordName(discordNameParam || null);
+        setDiscordAvatar(discordAvatarParam || null);
+      });
       const returnUrl = resolveReturnUrl();
       finishDiscordCallback(returnUrl);
       return;
@@ -406,18 +380,22 @@ function CheckoutPage() {
 
   // Reset verify state when changes alter the payment context.
   useEffect(() => {
-    setVerifyState({ status: "idle" });
+    queueMicrotask(() => setVerifyState({ status: "idle" }));
   }, [method, coin, selectedPlanId]);
 
   // Live LTC quote when crypto + LTC.
   useEffect(() => {
     if (method !== "crypto" || coin !== "LTC") {
-      setLtcQuote(null);
-      setQuoteStatus("idle");
+      queueMicrotask(() => {
+        setLtcQuote(null);
+        setQuoteStatus("idle");
+      });
       return;
     }
     let active = true;
-    setQuoteStatus("loading");
+    queueMicrotask(() => {
+      if (active) setQuoteStatus("loading");
+    });
 
     fetch(apiUrl("/api/v1/payments/USDTtoLTC"), {
       method: "POST",
@@ -938,9 +916,12 @@ function CheckoutPage() {
                     {isDiscordLinked ? (
                       <div className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-neutral-950/60 px-3 py-2 text-xs text-neutral-200 min-w-0">
                         {discordAvatarUrl ? (
-                          <img
+                          <Image
                             src={discordAvatarUrl}
                             alt="Discord avatar"
+                            width={32}
+                            height={32}
+                            unoptimized
                             className="h-8 w-8 rounded-full border border-white/10 object-cover shrink-0"
                           />
                         ) : (

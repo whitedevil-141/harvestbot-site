@@ -67,8 +67,6 @@ const PLAN_KEYS: { id: PlanId; tokens: string[] }[] = [
   { id: 'Lifetime', tokens: ['lifetime', 'unlimited', 'forever', 'vip', 'pro', 'enterprise', 'perpetual', 'infinity'] },
 ];
 
-const normalizeKey = (value: string) => value.toLowerCase().replace(/\s+/g, '');
-
 // Custom SVG Area Chart
 const CustomAreaChart = ({ data, period }: { data: Payment[]; period: ChartPeriod }) => {
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
@@ -794,7 +792,7 @@ export default function AdminDashboard() {
     el.value = text;
     document.body.appendChild(el);
     el.select();
-    try { document.execCommand('copy'); } catch (err) {}
+    try { document.execCommand('copy'); } catch {}
     document.body.removeChild(el);
     
     setCopiedId(text);
@@ -1261,7 +1259,7 @@ export default function AdminDashboard() {
                           <td colSpan={5} className="py-16 text-center text-zinc-500">
                             <div className="flex flex-col items-center justify-center">
                               <Search className="w-8 h-8 mb-3 opacity-20" />
-                              <p>No transactions found matching "{searchQuery || 'your filters'}"</p>
+                              <p>No transactions found matching &quot;{searchQuery || 'your filters'}&quot;</p>
                             </div>
                           </td>
                         </tr>

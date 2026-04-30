@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
@@ -236,16 +238,37 @@ const extractLtcQuote = (data: unknown) => {
   return null;
 };
 
+const resolvePlanIdFromParams = (params: { get: (key: string) => string | null }) => {
+  const planParam = normalizeQuery(params.get("plan"));
+  const normalizedPlanParam = normalizePlanToken(planParam);
+  const amountParam = getNumeric(params.get("amount"));
+
+  const matched = PLAN_OPTIONS.find((plan) => {
+    const matchesAmount = amountParam !== null && amountParam === plan.price;
+    const matchesAlias =
+      normalizedPlanParam &&
+      (normalizePlanToken(plan.label) === normalizedPlanParam ||
+        plan.aliases.some(
+          (alias) => normalizePlanToken(alias) === normalizedPlanParam
+        ));
+    return matchesAmount || matchesAlias;
+  });
+
+  return matched?.id ?? PLAN_OPTIONS[0].id;
+};
+
 export default function VerifyClient() {
   const searchParams = useSearchParams();
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [selectedPlanId, setSelectedPlanId] = useState(PLAN_OPTIONS[0].id);
+  const [selectedPlanId, setSelectedPlanId] = useState(() =>
+    resolvePlanIdFromParams(searchParams)
+  );
   const [method, setMethod] = useState<MethodId>("binance_pay");
   const [coin, setCoin] = useState<Coin>("USDT");
-  const [discordId, setDiscordId] = useState<string | null>(null);
-  const [discordName, setDiscordName] = useState<string | null>(null);
-  const [discordAvatar, setDiscordAvatar] = useState<string | null>(null);
+  const [discordId, setDiscordId] = useState<string | null>(() => getStoredDiscordId());
+  const [discordName, setDiscordName] = useState<string | null>(() => getStoredDiscordName());
+  const [discordAvatar, setDiscordAvatar] = useState<string | null>(() => getStoredDiscordAvatar());
   const [orderId, setOrderId] = useState("");
   const [redeemCode, setRedeemCode] = useState("");
   const [txId, setTxId] = useState("");
@@ -285,28 +308,8 @@ export default function VerifyClient() {
   };
 
   useEffect(() => {
-    setDiscordId(getStoredDiscordId());
-    setDiscordName(getStoredDiscordName());
-    setDiscordAvatar(getStoredDiscordAvatar());
-  }, []);
-
-  useEffect(() => {
-    const planParam = normalizeQuery(searchParams.get("plan"));
-    const normalizedPlanParam = normalizePlanToken(planParam);
-    const amountParam = getNumeric(searchParams.get("amount"));
-
-    const matched = PLAN_OPTIONS.find((plan) => {
-      const matchesAmount = amountParam !== null && amountParam === plan.price;
-      const matchesAlias =
-        normalizedPlanParam &&
-        (normalizePlanToken(plan.label) === normalizedPlanParam ||
-          plan.aliases.some(
-            (alias) => normalizePlanToken(alias) === normalizedPlanParam
-          ));
-      return matchesAmount || matchesAlias;
-    });
-
-    if (matched) setSelectedPlanId(matched.id);
+    const nextPlanId = resolvePlanIdFromParams(searchParams);
+    queueMicrotask(() => setSelectedPlanId(nextPlanId));
   }, [searchParams]);
 
   useEffect(() => {
@@ -318,16 +321,16 @@ export default function VerifyClient() {
       if (storedId && storedId !== discordParam) {
         localStorage.removeItem("discord_name");
         localStorage.removeItem("discord_avatar");
-        setDiscordName(null);
-        setDiscordAvatar(null);
       }
 
       localStorage.setItem("discord_id", discordParam);
-      setDiscordId(discordParam);
       setOptionalStorageValue("discord_name", discordNameParam);
       setOptionalStorageValue("discord_avatar", discordAvatarParam);
-      setDiscordName(discordNameParam || null);
-      setDiscordAvatar(discordAvatarParam || null);
+      queueMicrotask(() => {
+        setDiscordId(discordParam);
+        setDiscordName(discordNameParam || null);
+        setDiscordAvatar(discordAvatarParam || null);
+      });
       finishDiscordCallback();
       return;
     }
@@ -389,18 +392,22 @@ export default function VerifyClient() {
   }, [searchParams]);
 
   useEffect(() => {
-    setVerifyState({ status: "idle" });
+    queueMicrotask(() => setVerifyState({ status: "idle" }));
   }, [method, coin, selectedPlanId]);
 
   useEffect(() => {
     if (method !== "crypto" || coin !== "LTC") {
-      setLtcQuote(null);
-      setQuoteStatus("idle");
+      queueMicrotask(() => {
+        setLtcQuote(null);
+        setQuoteStatus("idle");
+      });
       return;
     }
 
     let active = true;
-    setQuoteStatus("loading");
+    queueMicrotask(() => {
+      if (active) setQuoteStatus("loading");
+    });
 
     fetch("https://api.harvestbot.app/api/v1/payments/USDTtoLTC", {
       method: "POST",
@@ -490,7 +497,7 @@ export default function VerifyClient() {
 
     const trimmedExistingUsername = existingUsername.trim();
     const isExistingUser = Boolean(trimmedExistingUsername);
-    let payload: Record<string, string> = {};
+    const payload: Record<string, string> = {};
 
     if (trimmedExistingUsername) {
       payload.existing_username = trimmedExistingUsername;
@@ -666,12 +673,12 @@ export default function VerifyClient() {
           <header className="max-w-6xl mx-auto px-5 pt-10 pb-9">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="animate-reveal">
-                <a
+                <Link
                   href="/"
                   className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 hover:text-[#23f8ff]"
                 >
                   Back to Harvest Bot
-                </a>
+                </Link>
                 <h1 className="mt-3 text-4xl md:text-5xl font-semibold tracking-tight">
                   Payment Gateway
                 </h1>
@@ -942,9 +949,12 @@ export default function VerifyClient() {
                       {discordId ? (
                         <div className="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-200">
                           {discordAvatarUrl ? (
-                            <img
+                            <Image
                               src={discordAvatarUrl}
                               alt="Discord avatar"
+                              width={32}
+                              height={32}
+                              unoptimized
                               className="h-8 w-8 rounded-full border border-slate-700 object-cover"
                             />
                           ) : (
