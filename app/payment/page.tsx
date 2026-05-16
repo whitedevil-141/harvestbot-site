@@ -636,8 +636,8 @@ function CheckoutPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-neutral-200 font-sans relative selection:bg-[#23f8ff]/30">
       {/* Ambient glow */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 right-[-10%] w-72 h-72 md:w-[28rem] md:h-[28rem] bg-[#23f8ff]/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-72 h-72 md:w-[28rem] md:h-[28rem] bg-purple-500/10 rounded-full blur-[140px]" />
+        <div className="absolute -top-32 right-[-10%] w-72 h-72 md:w-md md:h-112 bg-[#23f8ff]/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-72 h-72 md:w-md md:h-112 bg-purple-500/10 rounded-full blur-[140px]" />
         <div className="absolute top-16 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-[#23f8ff]/5 blur-[120px]" />
       </div>
 
@@ -695,8 +695,8 @@ function CheckoutPage() {
                       aria-pressed={isSelected}
                       className={`relative rounded-xl border px-4 py-4 sm:px-5 sm:py-4 text-left transition-all ${
                         isSelected
-                          ? "border-[#23f8ff]/50 bg-[#23f8ff]/[0.05] shadow-[0_0_30px_rgba(35,248,255,0.08)]"
-                          : "border-white/5 bg-neutral-950/60 hover:border-white/10 hover:bg-white/[0.02]"
+                          ? "border-[#23f8ff]/50 bg-[#23f8ff]/5 shadow-[0_0_30px_rgba(35,248,255,0.08)]"
+                          : "border-white/5 bg-neutral-950/60 hover:border-white/10 hover:bg-white/2"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -751,8 +751,8 @@ function CheckoutPage() {
                       aria-pressed={isSelected}
                       className={`rounded-xl border px-4 py-4 text-left transition-all ${
                         isSelected
-                          ? "border-[#23f8ff]/50 bg-[#23f8ff]/[0.05] shadow-[0_0_20px_rgba(35,248,255,0.08)]"
-                          : "border-white/5 bg-neutral-950/60 hover:border-white/10 hover:bg-white/[0.02]"
+                          ? "border-[#23f8ff]/50 bg-[#23f8ff]/5 shadow-[0_0_20px_rgba(35,248,255,0.08)]"
+                          : "border-white/5 bg-neutral-950/60 hover:border-white/10 hover:bg-white/2"
                       }`}
                     >
                       <p className={`text-sm font-bold ${isSelected ? "text-white" : "text-neutral-200"}`}>{option.title}</p>
@@ -814,7 +814,7 @@ function CheckoutPage() {
                         onClick={() => setCoin("USDT")}
                         className={`rounded-full border px-4 py-1.5 text-[11px] font-bold transition-all ${
                           coin === "USDT"
-                            ? "border-[#23f8ff]/50 bg-[#23f8ff]/[0.05] text-[#23f8ff]"
+                            ? "border-[#23f8ff]/50 bg-[#23f8ff]/5 text-[#23f8ff]"
                             : "border-white/10 bg-neutral-950 text-neutral-500 hover:text-neutral-300"
                         }`}
                       >
@@ -825,7 +825,7 @@ function CheckoutPage() {
                         onClick={() => setCoin("LTC")}
                         className={`rounded-full border px-4 py-1.5 text-[11px] font-bold transition-all ${
                           coin === "LTC"
-                            ? "border-[#23f8ff]/50 bg-[#23f8ff]/[0.05] text-[#23f8ff]"
+                            ? "border-[#23f8ff]/50 bg-[#23f8ff]/5 text-[#23f8ff]"
                             : "border-white/10 bg-neutral-950 text-neutral-500 hover:text-neutral-300"
                         }`}
                       >
