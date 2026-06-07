@@ -9,6 +9,7 @@ import {
   Clock, 
   Target, 
   ShieldCheck, 
+  Shuffle,
   Swords, 
   BarChart3, 
   Timer, 
@@ -74,10 +75,10 @@ const PRICING_PLANS = [
 type PricingPlan = (typeof PRICING_PLANS)[number];
 
 const SHOWCASE_FEATURES = [
-  { id: 'farming', title: 'Smart Base Hunting', icon: Target, videoId: 'SMART_BASE_HUNTING_VIDEO_ID', desc: 'Our AI scans thousands of bases per minute, identifying dead bases with full collectors to maximize profit while minimizing troop cost.' },
-  { id: 'walls', title: 'Auto Wall Upgrades', icon: Layers, videoId: 'AUTO_WALL_UPGRADES_VIDEO_ID', desc: 'Never hit the resource cap. The bot automatically identifies your cheapest walls and dumps excess loot into them.' },
-  { id: 'antiban', title: 'Human-like Anti-Ban', icon: ShieldCheck, videoId: 'HUMAN_LIKE_ANTI_BAN_VIDEO_ID', desc: 'Simulates real human touches with randomized delays, imperfect drop patterns, and forced break schedules.' },
-  { id: 'stats', title: 'Live Dashboard', icon: BarChart3, videoId: 'LIVE_DASHBOARD_VIDEO_ID', desc: 'Monitor your hourly gains, total loot, and attack history in real-time from our beautiful web dashboard.' }
+  { id: 'farming', title: 'Smart Base Hunting', icon: Target, videoSrc: '/uploads/Smart Base Hunting.webm', desc: 'Our AI scans thousands of bases per minute, identifying dead bases with full collectors to maximize profit while minimizing troop cost.' },
+  { id: 'walls', title: 'Auto Wall Upgrades', icon: Layers, videoSrc: '/uploads/Auto Wall Upgrade.webm', desc: 'Never hit the resource cap. The bot automatically identifies your cheapest walls and dumps excess loot into them.' },
+  { id: 'attacking', title: 'Randomize Attacking Style', icon: Shuffle, videoSrc: '/uploads/Randomize Attacking Style.webm', desc: 'Varies troop deployment patterns, attack angles, and spell placements to mimic unpredictable human behavior.' },
+  { id: 'army', title: 'Multiple Army Support', icon: Swords, videoSrc: '/uploads/Multiple Army Support.webm', desc: 'Configure and cycle through multiple army compositions so the bot never repeats the same strategy back-to-back.' }
 ];
 
 // --- COMPONENTS ---
@@ -553,13 +554,14 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
 
                   <div key={activeShowcaseFeature.id} className="relative z-10 flex h-full w-full animate-fade-in-up">
                     <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl">
-                      <iframe
-                        className="h-full w-full"
-                        src={`https://www.youtube.com/embed/${activeShowcaseFeature.videoId}`}
-                        title={`Clash of Clans Farming Bot Demo - ${activeShowcaseFeature.title}`}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        loading="lazy"
+                      <video
+                        className="h-full w-full object-cover"
+                        src={activeShowcaseFeature.videoSrc}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        controls
                       />
                     </div>
                   </div>
