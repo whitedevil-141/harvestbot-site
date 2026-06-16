@@ -15,6 +15,7 @@ import {
   Timer, 
   ArrowUpCircle, 
   Check,
+
   Star,
   MessageSquareQuote,
   ChevronRight,
@@ -832,9 +833,9 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
             <div>
               <h3 className="text-white font-bold mb-4 md:mb-5 text-sm tracking-wide">Legal</h3>
               <ul className="space-y-3 md:space-y-3.5">
-                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Terms of Service</a></li>
-                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Privacy Policy</a></li>
-                <li><a href="#" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Refund Policy</a></li>
+                <li><a href="/terms" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Terms of Service</a></li>
+                <li><a href="/privacy" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Privacy Policy</a></li>
+                <li><a href="/refund" className="text-xs md:text-sm text-neutral-500 hover:text-white transition-colors font-medium">Refund Policy</a></li>
               </ul>
             </div>
             
