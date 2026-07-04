@@ -801,7 +801,7 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
                 The #1 Automation Tool for Clash of Clans. Helping Chiefs max their bases faster since 2025. Save time, farm smart, and dominate the leaderboards.
               </p>
               <div className="flex items-center gap-3">
-                <a href="https://www.youtube.com/@harvest-bot" className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/3 border border-white/5 flex items-center justify-center text-neutral-400 hover:text-[#23f8ff] hover:bg-[#23f8ff]/10 hover:border-[#23f8ff]/30 transition-all duration-300">
+                <a href="https://www.youtube.com/@harvest_bot-f3f" className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/3 border border-white/5 flex items-center justify-center text-neutral-400 hover:text-[#23f8ff] hover:bg-[#23f8ff]/10 hover:border-[#23f8ff]/30 transition-all duration-300">
                    <Youtube className="w-4 h-4" />
                 </a>
                 <a href="https://discord.com/invite/ymj4rEHpEV" className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/3 border border-white/5 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all duration-300">
