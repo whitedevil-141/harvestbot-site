@@ -9,6 +9,7 @@ import {
   BookOpen,
   CreditCard,
   Cpu,
+  FlaskConical,
   LayoutDashboard,
   Menu,
   MessagesSquare,
@@ -39,6 +40,7 @@ export const NAV: NavGroup[] = [
     label: "Chatbot",
     items: [
       { href: "/admin/chatbot", label: "Overview", icon: Activity },
+      { href: "/admin/chatbot/playground", label: "Playground", icon: FlaskConical },
       { href: "/admin/chatbot/conversations", label: "Conversations", icon: MessagesSquare },
       { href: "/admin/chatbot/tuning", label: "Tuning", icon: SlidersHorizontal },
       { href: "/admin/chatbot/models", label: "Models", icon: Cpu },
