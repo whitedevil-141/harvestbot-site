@@ -4,17 +4,14 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Spinner } from "@/components/admin/ui";
 
-/**
- * The dashboard used to be one page switching on an id. It is a route tree now;
- * this stays so existing bookmarks still land somewhere useful.
- */
-export default function DashboardRedirect() {
+/** /admin has no screen of its own; payments is the landing surface. */
+export default function AdminIndex() {
   const router = useRouter();
   useEffect(() => router.replace("/admin/payments"), [router]);
 
   return (
     <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-adm-mute">
-      <Spinner /> Redirecting…
+      <Spinner /> Opening payments…
     </div>
   );
 }

@@ -18,14 +18,24 @@ export type ApiEnvironment = {
 // 'auto'       : pick by hostname at runtime
 // 'local'      : force local URLs (for local-only testing against a local backend)
 // 'production' : force production URLs
-const MODE: "auto" | "local" | "production" = "auto";
+type Mode = "auto" | "local" | "production";
+// `as Mode` keeps the type widened: a plain annotated const narrows to its
+// literal, which makes the branches below look like dead comparisons to tsc.
+const MODE = "auto" as Mode;
+
+/** Dev port of the backend. The host is not pinned -- see LOCAL_HOST_FALLBACK. */
+const LOCAL_API_PORT = 8000;
+const LOCAL_SITE_PORT = 3000;
+
+// Used only when there is no window to read a hostname from (SSR/prerender).
+// 127.0.0.1 rather than localhost: the backend binds v4, and localhost resolves
+// to ::1 first on Windows, which fails to connect from Node.
+const LOCAL_HOST_FALLBACK = "127.0.0.1";
 
 const ENVIRONMENTS = {
   local: {
-    // 127.0.0.1 rather than localhost: the backend binds v4, and localhost
-    // resolves to ::1 first on Windows, which fails to connect.
-    apiBaseUrl: "http://127.0.0.1:8000",
-    siteOrigin: "http://localhost:3000",
+    apiBaseUrl: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_API_PORT}`,
+    siteOrigin: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_SITE_PORT}`,
   },
   production: {
     apiBaseUrl: "https://api.harvestbot.app",
@@ -41,13 +51,32 @@ export const getEnv = (): ApiEnvironment => {
   if (override) {
     return { apiBaseUrl: override.replace(/\/+$/, ""), siteOrigin: ENVIRONMENTS.production.siteOrigin };
   }
-  if (MODE !== "auto") return ENVIRONMENTS[MODE];
-  if (typeof window === "undefined") return ENVIRONMENTS.production;
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
-    return ENVIRONMENTS.local;
+  if (typeof window === "undefined") {
+    return MODE === "local" ? ENVIRONMENTS.local : ENVIRONMENTS.production;
   }
-  return ENVIRONMENTS.production;
+  const host = window.location.hostname;
+  const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+  if (MODE === "production" || (MODE === "auto" && !isLoopback)) {
+    return ENVIRONMENTS.production;
+  }
+
+  // Local: keep the API on the *same hostname the page was loaded from*.
+  //
+  // The admin dashboard authenticates with an HttpOnly SameSite=Lax cookie, so
+  // page and API must be same-site or the browser silently drops the cookie
+  // from every credentialed request -- login returns 204 and everything after
+  // it 401s. `localhost` and `127.0.0.1` are different sites even though they
+  // resolve to the same interface, so pinning either one here breaks whichever
+  // spelling the developer happens to type into the address bar. Ports are not
+  // part of the site, so only the host has to match.
+  //
+  // In production the problem does not arise: harvestbot.app and
+  // api.harvestbot.app share a registrable domain.
+  const localHost = isLoopback ? host : LOCAL_HOST_FALLBACK;
+  return {
+    apiBaseUrl: `http://${localHost}:${LOCAL_API_PORT}`,
+    siteOrigin: `http://${localHost}:${LOCAL_SITE_PORT}`,
+  };
 };
 
 export const API_BASE = () => getEnv().apiBaseUrl;
@@ -68,8 +97,22 @@ export const ENDPOINTS = {
   discordCallback: "/api/website/auth/discord/callback",
   paymentWebhook: "/api/website/payment/webhook",
 
-  // --- website: operator surface (X-App-Secret) ----------------------------
+  // --- admin: one session for every operator surface -----------------------
+  // Canonical, and shared: the admin_session cookie minted here grants access
+  // to both the website admin routes and the chatbot admin tree. The old
+  // per-surface auth paths (/api/website/admin/auth/*, /api/v1/admin/auth/*)
+  // have been removed from the backend; /api/chatbot/admin/auth/* survives only
+  // as a legacy alias and is not targeted here. Paths hang off this base in
+  // lib/admin-auth.ts.
+  adminAuth: "/api/admin/auth",
+
+  // --- website: operator surface (admin_session cookie) --------------------
   verifiedPayments: "/api/website/admin/verified_payments",
+
+  // --- chatbot: admin console (admin_session cookie) -----------------------
+  // Base of the tree only. The per-resource paths hang off it in
+  // lib/chatbot-admin.ts, which owns that whole client.
+  chatbotAdmin: "/api/chatbot/admin",
 
   // --- shared -------------------------------------------------------------
   health: "/api/health",

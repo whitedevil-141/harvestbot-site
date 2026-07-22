@@ -14,17 +14,143 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #030303;
     --foreground: #ededed;
+  }
+}
+
+/* --- admin dashboard design system -----------------------------------------
+   A premium 2026 dark console: near-black backgrounds, layered glass surfaces,
+   and a single cyan accent. Everything is registered as Tailwind tokens so
+   admin surfaces never hand-write hex values.
+---------------------------------------------------------------------------- */
+@theme {
+  --color-adm-bg: #030303;
+  --color-adm-surface: #08080a;
+  --color-adm-surface-2: #0f0f12;
+  --color-adm-elevated: #141418;
+  --color-adm-line: rgba(255, 255, 255, 0.06);
+  --color-adm-line-strong: rgba(255, 255, 255, 0.12);
+  --color-adm-line-focus: rgba(42, 246, 255, 0.35);
+  --color-adm-text: #f4f4f5;
+  --color-adm-dim: #a1a1aa;
+  --color-adm-mute: #71717a;
+  --color-adm-accent: #2af6ff;
+  --color-adm-accent-dim: rgba(42, 246, 255, 0.12);
+  --color-adm-accent-glow: rgba(42, 246, 255, 0.25);
+  --color-adm-good: #2dd4bf;
+  --color-adm-good-dim: rgba(45, 212, 191, 0.12);
+  --color-adm-warn: #fbbf24;
+  --color-adm-warn-dim: rgba(251, 191, 36, 0.12);
+  --color-adm-bad: #f87171;
+  --color-adm-bad-dim: rgba(248, 113, 113, 0.12);
+  --color-adm-info: #60a5fa;
+  --color-adm-info-dim: rgba(96, 165, 250, 0.12);
+}
+
+/* Shared admin root styling. */
+.adm-root {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04";
+}
+
+/* Monospaced numbers so metrics and tables do not jitter as they update. */
+.adm-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom scrollbar for admin scroll areas. */
+.adm-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.adm-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.adm-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.adm-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Entrance animation used on every route change. */
+@keyframes admEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.adm-enter {
+  animation: admEnter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.adm-enter-1 { animation-delay: 40ms; }
+.adm-enter-2 { animation-delay: 80ms; }
+.adm-enter-3 { animation-delay: 120ms; }
+.adm-enter-4 { animation-delay: 160ms; }
+.adm-enter-5 { animation-delay: 200ms; }
+
+/* Shimmer loading effect. */
+@keyframes admShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.adm-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: admShimmer 1.6s infinite linear;
+}
+
+/* Subtle ambient glow used behind glass cards. */
+@keyframes admGlow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.adm-glow {
+  animation: admGlow 5s ease-in-out infinite;
+}
+
+/* Reduced motion: disable all non-essential animations. */
+@media (prefers-reduced-motion: reduce) {
+  .adm-enter,
+  .adm-shimmer,
+  .adm-glow {
+    animation: none;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Marketing page animations (kept intact). */
 @keyframes scroll {
   0% {
     transform: translateX(0);
@@ -114,29 +240,12 @@ body {
   animation: pulseSlow 4s ease-in-out infinite;
 }
 
-.delay-100 {
-  animation-delay: 100ms;
-}
-
-.delay-200 {
-  animation-delay: 200ms;
-}
-
-.delay-300 {
-  animation-delay: 300ms;
-}
-
-.delay-400 {
-  animation-delay: 400ms;
-}
-
-.delay-500 {
-  animation-delay: 500ms;
-}
-
-.delay-600 {
-  animation-delay: 600ms;
-}
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-600 { animation-delay: 600ms; }
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
