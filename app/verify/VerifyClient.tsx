@@ -13,15 +13,13 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
-
-type PlanOption = {
-  id: string;
-  label: string;
-  days: number;
-  price: number;
-  tagline: string;
-  aliases: string[];
-};
+import { ENDPOINTS, apiUrl, discordCallbackUrl, discordLoginUrl } from "@/lib/api";
+import {
+  BINANCE_PAY_ID,
+  LTC_ADDRESS,
+  PLAN_OPTIONS,
+  USDT_TRX_ADDRESS,
+} from "@/lib/payment/constants";
 
 type MethodId = "binance_pay" | "gift_card" | "crypto";
 
@@ -35,47 +33,7 @@ type VerifyState = {
   isExistingUser?: boolean;
 };
 
-const BINANCE_PAY_ID = "770585563";
-const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
-const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
-const DISCORD_LOGIN_URL = "https://api.harvestbot.app/api/auth/discord/login";
-const DISCORD_CALLBACK_URL = "https://api.harvestbot.app/api/auth/discord/callback";
-const PAYMENT_WEBHOOK_URL = "https://api.harvestbot.app/api/payment/webhook";
-
-const PLAN_OPTIONS: PlanOption[] = [
-  {
-    id: "7d",
-    label: "Weekly",
-    days: 7,
-    price: 2,
-    tagline: "Quick boost for builder cycles",
-    aliases: ["weekly", "7", "7 days", "7-day"],
-  },
-  {
-    id: "15d",
-    label: "Bi-Weekly",
-    days: 15,
-    price: 5,
-    tagline: "Solid grind window",
-    aliases: ["bi-weekly", "15", "15 days", "15-day"],
-  },
-  {
-    id: "30d",
-    label: "Monthly",
-    days: 30,
-    price: 8,
-    tagline: "Best for long farms",
-    aliases: ["monthly", "30", "30 days", "30-day"],
-  },
-  {
-    id: "lifetime",
-    label: "Lifetime",
-    days: 3650,
-    price: 35,
-    tagline: "One payment, always on",
-    aliases: ["lifetime", "3650", "3650 days"],
-  },
-];
+const PAYMENT_WEBHOOK_URL = apiUrl(ENDPOINTS.paymentWebhook);
 
 const formatUsd = (amount: number) => `$${amount}`;
 
@@ -340,10 +298,11 @@ export default function VerifyClient() {
 
     const redirectUri = resolveDiscordRedirectUri();
     if (!redirectUri) return;
-    const callbackUrl = new URL(DISCORD_CALLBACK_URL);
-    callbackUrl.searchParams.set("code", codeParam);
-    callbackUrl.searchParams.set("redirect_uri", redirectUri);
-    callbackUrl.searchParams.set("return_url", resolveReturnUrl());
+    const callbackUrl = discordCallbackUrl({
+      code: codeParam,
+      redirectUri,
+      returnUrl: resolveReturnUrl(),
+    });
 
     let active = true;
 
@@ -409,7 +368,7 @@ export default function VerifyClient() {
       if (active) setQuoteStatus("loading");
     });
 
-    fetch("https://api.harvestbot.app/api/v1/payments/USDTtoLTC", {
+    fetch(apiUrl(ENDPOINTS.paymentsUsdtToLtc), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount: selectedPlan.price }),
@@ -457,7 +416,7 @@ export default function VerifyClient() {
   const startDiscordLogin = async () => {
     const redirectUri = resolveDiscordRedirectUri();
     if (!redirectUri) return;
-    const loginUrl = new URL(DISCORD_LOGIN_URL);
+    const loginUrl = discordLoginUrl();
     const returnUrl = buildReturnUrl();
     if (!returnUrl) return;
 
@@ -534,7 +493,7 @@ export default function VerifyClient() {
     }
 
     try {
-      const res = await fetch("https://api.harvestbot.app/api/v1/payments/verify", {
+      const res = await fetch(apiUrl(ENDPOINTS.paymentsVerify), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

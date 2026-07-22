@@ -5,7 +5,14 @@
       "Bash(npx next *)",
       "Bash(awk 'NR==1252,NR==1712' F:/Real-Projects/harvestbot-site/app/v2/page.tsx)",
       "Bash(git log *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(curl -s http://127.0.0.1:8000/openapi.json)",
+      "Bash(python -c ' *)",
+      "Read(//f/IMPORTANT/harvestbot-discord-bot/**)",
+      "Bash(sed -E 's/=.*/=<redacted>/' .env)",
+      "Bash(sed -E 's/\\\\?.*//')",
+      "Bash(unzip -l bot.zip)",
+      "Bash(sed 's/=$//')"
     ]
   }
 }

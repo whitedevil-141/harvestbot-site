@@ -12,47 +12,13 @@ import {
   UserRound,
   Wallet,
 } from 'lucide-react';
-
-// --- ENVIRONMENT MODE ---
-// 'auto'       : pick local when running on localhost/127.0.0.1, otherwise production
-// 'local'      : force local URLs (for local-only testing against a local backend)
-// 'production' : force production URLs
-const MODE: "auto" | "local" | "production" = "auto";
-
-const ENVIRONMENTS = {
-  local: {
-    apiBaseUrl: "http://localhost",
-    siteOrigin: "http://localhost:3000",
-  },
-  production: {
-    apiBaseUrl: "https://api.harvestbot.app",
-    siteOrigin: "https://harvestbot.app",
-  },
-} as const;
-
-const getEnv = () => {
-  if (MODE !== "auto") return ENVIRONMENTS[MODE];
-  if (typeof window === "undefined") return ENVIRONMENTS.production;
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
-    return ENVIRONMENTS.local;
-  }
-  return ENVIRONMENTS.production;
-};
-
-// --- CONSTANTS ---
-
-const BINANCE_PAY_ID = "770585563";
-const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
-const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
-const apiUrl = (path: string) => `${getEnv().apiBaseUrl}${path}`;
-
-const PLAN_OPTIONS = [
-  { id: "7d", label: "Weekly", days: 7, price: 2, tagline: "Quick boost for builder cycles", aliases: ["weekly", "7", "7 days", "7-day"] },
-  { id: "15d", label: "Bi-Weekly", days: 15, price: 5, tagline: "Solid grind window", aliases: ["bi-weekly", "15", "15 days", "15-day", "biweekly"] },
-  { id: "30d", label: "Monthly", days: 30, price: 8, tagline: "Best for long farms", aliases: ["monthly", "30", "30 days", "30-day"] },
-  { id: "lifetime", label: "Lifetime", days: 3650, price: 35, tagline: "One payment, always on", aliases: ["lifetime", "3650", "3650 days"] },
-];
+import { ENDPOINTS, apiUrl, discordCallbackUrl, discordLoginUrl } from '@/lib/api';
+import {
+  BINANCE_PAY_ID,
+  LTC_ADDRESS,
+  PLAN_OPTIONS,
+  USDT_TRX_ADDRESS,
+} from '@/lib/payment/constants';
 
 // --- HELPERS ---
 
@@ -326,10 +292,11 @@ function CheckoutPage() {
 
     const redirectUri = resolveDiscordRedirectUri();
     if (!redirectUri) return;
-    const callbackUrl = new URL(apiUrl("/api/auth/discord/callback"));
-    callbackUrl.searchParams.set("code", codeParam);
-    callbackUrl.searchParams.set("redirect_uri", redirectUri);
-    callbackUrl.searchParams.set("return_url", resolveReturnUrl());
+    const callbackUrl = discordCallbackUrl({
+      code: codeParam,
+      redirectUri,
+      returnUrl: resolveReturnUrl(),
+    });
 
     let active = true;
     fetch(callbackUrl.toString())
@@ -397,7 +364,7 @@ function CheckoutPage() {
       if (active) setQuoteStatus("loading");
     });
 
-    fetch(apiUrl("/api/v1/payments/USDTtoLTC"), {
+    fetch(apiUrl(ENDPOINTS.paymentsUsdtToLtc), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount: selectedPlan.price }),
@@ -456,7 +423,7 @@ function CheckoutPage() {
   const startDiscordLogin = async () => {
     const redirectUri = resolveDiscordRedirectUri();
     if (!redirectUri) return;
-    const loginUrl = new URL(apiUrl("/api/auth/discord/login"));
+    const loginUrl = discordLoginUrl();
     const returnUrl = buildReturnUrl();
     if (!returnUrl) return;
 
@@ -533,7 +500,7 @@ function CheckoutPage() {
     }
 
     try {
-      const res = await fetch(apiUrl("/api/v1/payments/verify"), {
+      const res = await fetch(apiUrl(ENDPOINTS.paymentsVerify), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -552,7 +519,7 @@ function CheckoutPage() {
         data.detail.toLowerCase().includes("already verified");
 
       if (isSuccess || alreadyVerified) {
-        const webhookRes = await fetch(apiUrl("/api/payment/webhook"), {
+        const webhookRes = await fetch(apiUrl(ENDPOINTS.paymentWebhook), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ discord_id: storedDiscordId }),

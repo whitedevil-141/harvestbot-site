@@ -26,6 +26,7 @@ import {
   Download,
   Youtube
 } from 'lucide-react';
+import { ENDPOINTS, apiUrl } from '@/lib/api';
 
 // --- DATA ---
 
@@ -55,7 +56,7 @@ type StatsApiResponse = {
   total_users?: unknown;
 };
 
-const STATS_API = "https://api.harvestbot.app/api/v1/stats";
+const STATS_API = apiUrl(ENDPOINTS.stats);
 const VOUCHES_API = "https://late-bread-b04a.white-devil-dev-141.workers.dev/vouches?limit=20";
 
 const DEFAULT_GLOBAL_STATS: GlobalStats = {

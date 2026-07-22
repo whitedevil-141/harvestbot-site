@@ -19,6 +19,7 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
+import { ENDPOINTS, apiUrl } from '@/lib/api';
 
 // --- HELPER COMPONENTS ---
 
@@ -517,26 +518,14 @@ export default function AdminDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const targetUrl = `https://api.harvestbot.app/api/v1/admin/verified_payments?app_secret=${encodeURIComponent(secretToUse)}`;
-      let response;
+      // Secret travels in a header, not the query string: a ?app_secret= lands
+      // in access logs, browser history and the Referer of every later request.
+      // The backend accepts either form.
+      const response = await fetch(apiUrl(ENDPOINTS.verifiedPayments), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json', 'X-App-Secret': secretToUse },
+      });
 
-      try {
-        // Attempt direct fetch first
-        response = await fetch(targetUrl, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        });
-      } catch (err) {
-        // If the browser blocks the request due to missing backend CORS headers, it throws a "Failed to fetch" TypeError.
-        // We catch it and automatically fall back to a secure CORS proxy so your UI still works perfectly.
-        if (err instanceof Error && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-          response = await fetch(proxyUrl);
-        } else {
-          throw err;
-        }
-      }
-      
       if (response.status === 403) {
         throw new Error('Invalid App Secret. Please try again.');
       }
@@ -569,9 +558,9 @@ export default function AdminDashboard() {
     }
     
     try {
-      const response = await fetch(`https://api.harvestbot.app/api/v1/admin/verified_payments?app_secret=${encodeURIComponent(appSecret)}`, {
+      const response = await fetch(apiUrl(ENDPOINTS.verifiedPayments), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-App-Secret': appSecret },
         body: JSON.stringify({
           transaction_id: newTxData.transaction_id,
           amount: parseFloat(newTxData.amount),
