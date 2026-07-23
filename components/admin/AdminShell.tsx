@@ -15,6 +15,7 @@ import {
   MessagesSquare,
   Server,
   SlidersHorizontal,
+  Wrench,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -44,6 +45,7 @@ export const NAV: NavGroup[] = [
       { href: "/admin/chatbot/conversations", label: "Conversations", icon: MessagesSquare },
       { href: "/admin/chatbot/tuning", label: "Tuning", icon: SlidersHorizontal },
       { href: "/admin/chatbot/models", label: "Models", icon: Cpu },
+      { href: "/admin/chatbot/functions", label: "Functions", icon: Wrench },
       { href: "/admin/chatbot/knowledge", label: "Knowledge", icon: BookOpen },
       { href: "/admin/chatbot/system", label: "System", icon: Server },
     ],

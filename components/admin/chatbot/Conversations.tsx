@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { RefreshCw, RotateCcw, ThumbsUp, Trash2 } from "lucide-react";
-import { useAdminResource } from "@/hooks/useAdminResource";
-import { conversations, type ConversationDetail, type ConversationSummary } from "@/lib/chatbot-admin";
+import React, { useEffect, useState } from "react";
+import { RefreshCw, RotateCcw, ThumbsUp, Trash2, X } from "lucide-react";
+import { useAdminResource, useDebouncedValue } from "@/hooks/useAdminResource";
+import {
+  conversations,
+  type ConversationDetail,
+  type ConversationSummary,
+  type Json,
+} from "@/lib/chatbot-admin";
 import {
   Alert,
   AsyncBlock,
@@ -24,6 +29,7 @@ import {
   SearchInput,
   Spinner,
   Textarea,
+  formatNumber,
   formatTimestamp,
 } from "../ui";
 
@@ -39,23 +45,36 @@ const ERROR_LABELS: Record<Filters["hasError"], string> = {
   no: "Clean",
 };
 
+/** Pull a display value out of a loosely-typed run/feedback row. */
+const pick = (row: Json, keys: string[]): string | number | null => {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+};
+
 export function Conversations() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+
+  // Text filters trail the keystrokes; the chips apply immediately.
+  const q = useDebouncedValue(filters.q, 350);
+  const channel = useDebouncedValue(filters.channel, 350);
 
   const cursor = cursorStack[cursorStack.length - 1];
 
   const page = useAdminResource(
     () =>
       conversations.list({
-        q: filters.q || undefined,
-        channel: filters.channel || undefined,
+        q: q || undefined,
+        channel: channel || undefined,
         has_error: filters.hasError === "any" ? undefined : filters.hasError === "yes",
         cursor: cursor ?? undefined,
         limit: PAGE_SIZE,
       }),
-    [filters.q, filters.channel, filters.hasError, cursor],
+    [q, channel, filters.hasError, cursor],
   );
 
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
@@ -63,11 +82,32 @@ export function Conversations() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const apply = (next: Filters) => {
-    setDraft(next);
-    setFilters(next);
+  // A changed filter invalidates every cursor already on the stack.
+  useEffect(() => {
     setCursorStack([null]);
-  };
+  }, [q, channel, filters.hasError]);
+
+  const activeFilters: { key: string; label: string; clear: () => void }[] = [
+    ...(filters.q ? [{ key: "q", label: `“${filters.q}”`, clear: () => setFilters((f) => ({ ...f, q: "" })) }] : []),
+    ...(filters.channel
+      ? [
+          {
+            key: "channel",
+            label: `channel: ${filters.channel}`,
+            clear: () => setFilters((f) => ({ ...f, channel: "" })),
+          },
+        ]
+      : []),
+    ...(filters.hasError !== "any"
+      ? [
+          {
+            key: "hasError",
+            label: ERROR_LABELS[filters.hasError],
+            clear: () => setFilters((f) => ({ ...f, hasError: "any" })),
+          },
+        ]
+      : []),
+  ];
 
   const remove = async (id: string) => {
     setDeleting(true);
@@ -102,34 +142,29 @@ export function Conversations() {
 
       <Panel
         title="Filters"
+        description="Results update as you type."
         actions={
-          filters.q || filters.channel || filters.hasError !== "any" ? (
-            <Button size="sm" variant="ghost" onClick={() => apply(EMPTY_FILTERS)}>
-              Clear
+          activeFilters.length > 0 ? (
+            <Button size="sm" variant="ghost" onClick={() => setFilters(EMPTY_FILTERS)}>
+              Clear all
             </Button>
           ) : undefined
         }
       >
-        <form
-          className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            apply(draft);
-          }}
-        >
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <span className="mb-1.5 block text-xs font-medium text-adm-dim">Transcript search</span>
             <SearchInput
-              value={draft.q}
-              onChange={(value) => setDraft({ ...draft, q: value })}
+              value={filters.q}
+              onChange={(value) => setFilters((f) => ({ ...f, q: value }))}
               placeholder="Words in the transcript…"
             />
           </div>
           <Input
             label="Channel"
-            value={draft.channel}
+            value={filters.channel}
             placeholder="discord, web, …"
-            onChange={(event) => setDraft({ ...draft, channel: event.target.value })}
+            onChange={(event) => setFilters((f) => ({ ...f, channel: event.target.value }))}
           />
           <div>
             <span className="mb-1.5 block text-xs font-medium text-adm-dim">Errors</span>
@@ -137,32 +172,45 @@ export function Conversations() {
               {(["any", "yes", "no"] as const).map((option) => (
                 <Chip
                   key={option}
-                  active={draft.hasError === option}
-                  onClick={() => setDraft({ ...draft, hasError: option })}
+                  active={filters.hasError === option}
+                  onClick={() => setFilters((f) => ({ ...f, hasError: option }))}
                 >
                   {ERROR_LABELS[option]}
                 </Chip>
               ))}
             </div>
           </div>
-          <Button type="submit" variant="primary">
-            Apply filters
-          </Button>
-        </form>
+        </div>
       </Panel>
 
       <Panel
         title="Sessions"
         padded={false}
+        description={
+          activeFilters.length > 0 ? `${activeFilters.length} filter${activeFilters.length === 1 ? "" : "s"} active` : undefined
+        }
         actions={
-          <CursorPager
-            page={cursorStack.length}
-            hasPrevious={cursorStack.length > 1}
-            hasNext={Boolean(page.data?.next_cursor)}
-            loading={page.loading}
-            onPrevious={() => setCursorStack((stack) => stack.slice(0, -1))}
-            onNext={() => setCursorStack((stack) => [...stack, page.data?.next_cursor ?? null])}
-          />
+          <>
+            {activeFilters.map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={filter.clear}
+                className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-full border border-adm-accent/40 bg-adm-accent-dim px-2.5 py-1 text-xs text-adm-accent transition-colors hover:border-adm-accent/60"
+              >
+                <span className="truncate">{filter.label}</span>
+                <X className="h-3 w-3 shrink-0" />
+              </button>
+            ))}
+            <CursorPager
+              page={cursorStack.length}
+              hasPrevious={cursorStack.length > 1}
+              hasNext={Boolean(page.data?.next_cursor)}
+              loading={page.loading}
+              onPrevious={() => setCursorStack((stack) => stack.slice(0, -1))}
+              onNext={() => setCursorStack((stack) => [...stack, page.data?.next_cursor ?? null])}
+            />
+          </>
         }
       >
         <AsyncBlock
@@ -227,6 +275,50 @@ export function Conversations() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * Runs and feedback are free-form JSON from the recorder, so the summary line is
+ * built defensively from whichever keys happen to be present, with the full row
+ * still one disclosure away.
+ */
+function RecordRow({ row, kind }: { row: Json; kind: "run" | "feedback" }) {
+  const model = pick(row, ["model", "llm_model"]);
+  const latency = pick(row, ["latency_ms", "duration_ms"]);
+  const tokens = pick(row, ["total_tokens", "tokens"]);
+  const rating = pick(row, ["rating", "score"]);
+  const comment = pick(row, ["comment", "note", "message"]);
+  const created = pick(row, ["created_at", "timestamp", "started_at"]);
+  const error = pick(row, ["error", "error_message"]);
+
+  return (
+    <div className="rounded-xl border border-adm-line bg-adm-bg px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {kind === "feedback" && rating !== null && (
+          <Badge tone={String(rating) === "positive" ? "good" : "warn"}>{rating}</Badge>
+        )}
+        {model !== null && <Badge tone="accent">{model}</Badge>}
+        {latency !== null && <span className="adm-nums text-[11px] text-adm-mute">{formatNumber(latency)} ms</span>}
+        {tokens !== null && <span className="adm-nums text-[11px] text-adm-mute">{formatNumber(tokens)} tokens</span>}
+        {error !== null && <Badge tone="bad">error</Badge>}
+        {created !== null && (
+          <span className="adm-nums ml-auto text-[11px] text-adm-mute">{formatTimestamp(String(created))}</span>
+        )}
+      </div>
+
+      {comment !== null && <p className="mt-2 break-words text-[13px] text-adm-dim">{comment}</p>}
+      {error !== null && <p className="mt-2 break-words text-[13px] text-adm-bad">{error}</p>}
+
+      <details className="mt-2">
+        <summary className="cursor-pointer text-[11px] text-adm-mute marker:text-adm-mute hover:text-adm-dim">
+          Raw
+        </summary>
+        <div className="mt-2">
+          <JsonBlock value={row} />
+        </div>
+      </details>
+    </div>
   );
 }
 
@@ -304,27 +396,36 @@ function ConversationDrawer({
 
       <AsyncBlock loading={detail.loading && !detail.data} error={detail.error} onRetry={detail.refresh}>
         <section>
-          <h3 className="mb-3 text-xs font-semibold tracking-wide text-adm-mute uppercase">Transcript</h3>
+          <h3 className="mb-3 text-xs font-semibold tracking-wide text-adm-mute uppercase">
+            Transcript
+            {transcript.length > 0 && <span className="ml-2 text-adm-dim normal-case">{transcript.length}</span>}
+          </h3>
           {transcript.length === 0 ? (
             <p className="text-[13px] text-adm-mute">No messages recorded.</p>
           ) : (
             <div className="space-y-3">
-              {transcript.map((message, index) => (
-                <div
-                  key={index}
-                  className={`relative rounded-2xl border p-4 ${
-                    message.role === "user"
-                      ? "border-adm-line bg-adm-bg"
-                      : "border-adm-accent/20 bg-gradient-to-br from-adm-accent/8 to-transparent"
-                  }`}
-                >
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <Badge tone={message.role === "user" ? "neutral" : "accent"}>{message.role}</Badge>
-                    <span className="adm-nums text-[11px] text-adm-mute">{formatTimestamp(message.created_at)}</span>
+              {transcript.map((message, index) => {
+                const isUser = message.role === "user";
+                return (
+                  <div key={index} className={`flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
+                    <div className="flex items-center gap-2 px-1">
+                      <span className="text-[11px] font-medium text-adm-dim">{message.role}</span>
+                      <span className="adm-nums text-[11px] text-adm-mute">
+                        {formatTimestamp(message.created_at)}
+                      </span>
+                    </div>
+                    <div
+                      className={`max-w-[85%] break-words whitespace-pre-wrap rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
+                        isUser
+                          ? "border border-adm-line bg-adm-bg text-adm-text"
+                          : "border border-adm-accent/15 bg-gradient-to-br from-adm-accent/[0.06] to-transparent text-adm-text"
+                      }`}
+                    >
+                      {message.content}
+                    </div>
                   </div>
-                  <p className="break-words whitespace-pre-wrap text-[13px] text-adm-text">{message.content}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -334,7 +435,7 @@ function ConversationDrawer({
             <h3 className="mb-3 text-xs font-semibold tracking-wide text-adm-mute uppercase">Runs</h3>
             <div className="space-y-2">
               {runs.map((row, index) => (
-                <JsonBlock key={index} value={row} />
+                <RecordRow key={index} row={row} kind="run" />
               ))}
             </div>
           </section>
@@ -345,7 +446,7 @@ function ConversationDrawer({
             <h3 className="mb-3 text-xs font-semibold tracking-wide text-adm-mute uppercase">Recorded feedback</h3>
             <div className="space-y-2">
               {feedbackRows.map((row, index) => (
-                <JsonBlock key={index} value={row} />
+                <RecordRow key={index} row={row} kind="feedback" />
               ))}
             </div>
           </section>

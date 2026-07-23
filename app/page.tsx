@@ -19,8 +19,6 @@ import {
   Star,
   MessageSquareQuote,
   ChevronRight,
-  Twitter,
-  MessageSquare,
   Menu,
   X,
   Download,

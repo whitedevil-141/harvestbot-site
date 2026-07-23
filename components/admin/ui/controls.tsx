@@ -165,6 +165,19 @@ export function Textarea({
   );
 }
 
+export type SelectOption = { value: string; label: string; disabled?: boolean };
+/** A group renders as an <optgroup>; a bare option renders at the top level. */
+export type SelectGroup = { label: string; options: SelectOption[] };
+export type SelectItem = SelectOption | SelectGroup;
+
+const isGroup = (item: SelectItem): item is SelectGroup => "options" in item;
+
+const renderOption = (option: SelectOption) => (
+  <option key={option.value} value={option.value} disabled={option.disabled} className="bg-adm-surface-2">
+    {option.label}
+  </option>
+);
+
 export function Select({
   label,
   hint,
@@ -176,7 +189,7 @@ export function Select({
   label?: React.ReactNode;
   hint?: React.ReactNode;
   error?: string | null;
-  options: { value: string; label: string }[];
+  options: SelectItem[];
 }) {
   return (
     <Field label={label} hint={hint} error={error}>
@@ -185,13 +198,111 @@ export function Select({
           {...props}
           className={`h-9 appearance-none pr-9 ${FIELD_BASE} ${borderFor(error)} ${className}`}
         >
-          {options.map((option) => (
-            <option key={option.value} value={option.value} className="bg-adm-surface-2">
-              {option.label}
-            </option>
-          ))}
+          {options.map((item) =>
+            isGroup(item) ? (
+              <optgroup key={item.label} label={item.label} className="bg-adm-surface-2">
+                {item.options.map(renderOption)}
+              </optgroup>
+            ) : (
+              renderOption(item)
+            ),
+          )}
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-adm-mute" />
+      </span>
+    </Field>
+  );
+}
+
+/**
+ * A bounded number: the track carries the range, the box beside it stays
+ * authoritative for exact values. Typing is not clamped mid-keystroke (that
+ * makes "0.05" impossible to type); the value is clamped on blur instead.
+ */
+export function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  hint,
+  error,
+  suffix,
+  disabled,
+  onChange,
+}: {
+  label?: React.ReactNode;
+  value: number | null;
+  min: number;
+  max: number;
+  step: number;
+  hint?: React.ReactNode;
+  error?: string | null;
+  suffix?: string;
+  disabled?: boolean;
+  onChange: (value: number | null) => void;
+}) {
+  const [text, setText] = useState(value === null ? "" : String(value));
+  const [seen, setSeen] = useState(value);
+
+  // Follow outside changes (Reset, reload) without fighting an active edit.
+  // Adjusted during render rather than in an effect: React re-runs this pass
+  // before committing, so the box never paints a stale number.
+  if (value !== seen) {
+    setSeen(value);
+    if (Number(text) !== value) setText(value === null ? "" : String(value));
+  }
+
+  const commit = (next: string) => {
+    setText(next);
+    if (next.trim() === "") return onChange(null);
+    const parsed = Number(next);
+    if (Number.isFinite(parsed)) onChange(parsed);
+  };
+
+  const clampOnBlur = () => {
+    if (value === null) return;
+    const clamped = Math.min(max, Math.max(min, value));
+    if (clamped !== value) {
+      onChange(clamped);
+      setText(String(clamped));
+    }
+  };
+
+  const knobValue = Math.min(max, Math.max(min, value ?? min));
+
+  return (
+    <Field label={label} hint={hint} error={error}>
+      <span className="flex items-center gap-3">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={knobValue}
+          disabled={disabled}
+          aria-label={typeof label === "string" ? label : undefined}
+          onChange={(event) => commit(event.target.value)}
+          className={`h-9 min-w-0 flex-1 cursor-pointer accent-adm-accent disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS}`}
+        />
+        <span className="relative shrink-0">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={step}
+            value={text}
+            disabled={disabled}
+            onChange={(event) => commit(event.target.value)}
+            onBlur={clampOnBlur}
+            className={`adm-nums h-9 w-24 text-right ${suffix ? "pr-7" : ""} ${FIELD_BASE} ${borderFor(error)}`}
+          />
+          {suffix && (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-adm-mute">
+              {suffix}
+            </span>
+          )}
+        </span>
       </span>
     </Field>
   );

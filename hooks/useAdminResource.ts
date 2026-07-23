@@ -57,6 +57,23 @@ export function useAdminResource<T>(
   return { ...state, refresh: run, setData: (data: T | null) => setState((s) => ({ ...s, data })) };
 }
 
+/**
+ * Trails `value` by `delayMs`, so a filter can be typed into freely without
+ * firing a request per keystroke. The first value is returned immediately.
+ */
+export function useDebouncedValue<T>(value: T, delayMs = 300): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    if (Object.is(debounced, value)) return;
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
 /** Re-run `callback` on an interval while `enabled`. The admin tree is rate-limit exempt. */
 export function usePolling(callback: () => void, intervalMs: number, enabled = true) {
   const callbackRef = useRef(callback);

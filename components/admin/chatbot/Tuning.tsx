@@ -1,10 +1,15 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { History, Lock, Play, RotateCcw, Save, Send } from "lucide-react";
-import { ApiError } from "@/lib/api";
-import { useAdminResource } from "@/hooks/useAdminResource";
-import { config as configApi, playground, type Json, type PlaygroundResponse } from "@/lib/chatbot-admin";
+import Link from "next/link";
+import { ChevronDown, Lock, Plus, RotateCcw, Save, X } from "lucide-react";
+import {
+  config as configApi,
+  fieldErrorsFrom,
+  findModelFields,
+  type AdminConfigBundle,
+  type Json,
+} from "@/lib/chatbot-admin";
 import {
   Alert,
   AsyncBlock,
@@ -14,38 +19,74 @@ import {
   KeyValueList,
   PageHeader,
   Panel,
-  Row,
-  Rows,
-  Spinner,
+  Slider,
   Textarea,
   Toggle,
-  formatNumber,
-  formatTimestamp,
   humanize,
 } from "../ui";
 import { useConfigBundle } from "./ConfigContext";
+import { ModelPicker, isChoiceReady, type ModelChoice } from "./ModelPicker";
 
-const PLAYGROUND_SESSION = "playground";
+/** Sections that render in the right-hand column; everything else goes left. */
+const RIGHT_COLUMN = new Set(["Prompts", "Advanced"]);
 
-const isToolField = (key: string) => key.includes("tool");
 const isPromptField = (key: string) => key.includes("prompt");
 
-function fieldErrorsFrom(error: unknown): { fields: Record<string, string>; banner: string | null } {
-  if (!(error instanceof ApiError)) {
-    return { fields: {}, banner: error instanceof Error ? error.message : "Save failed." };
-  }
-  const detail = (error.body as { detail?: unknown } | null)?.detail;
-  if (Array.isArray(detail)) {
-    const fields: Record<string, string> = {};
-    for (const entry of detail) {
-      const item = entry as { loc?: unknown[]; msg?: string };
-      const key = Array.isArray(item.loc) ? String(item.loc[item.loc.length - 1]) : "";
-      if (key && item.msg) fields[key] = item.msg;
-    }
-    return { fields, banner: Object.keys(fields).length ? null : error.message };
-  }
-  return { fields: {}, banner: error.message };
-}
+/**
+ * Fields that have a better home than a raw editor on this page. Editing them
+ * here is still possible through the API; hiding them keeps Tuning to the
+ * settings you actually turn day to day.
+ */
+const MANAGED_ELSEWHERE: { match: RegExp; where: string; href: string }[] = [
+  { match: /catalog|preset/i, where: "Models", href: "/admin/chatbot/models" },
+  { match: /tool/i, where: "Functions", href: "/admin/chatbot/functions" },
+];
+
+const managedElsewhere = (key: string) => MANAGED_ELSEWHERE.find((entry) => entry.match.test(key)) ?? null;
+
+/**
+ * Bounded numbers get a slider instead of a bare number box. The max widens if
+ * the saved value is already above it, so an out-of-range config still shows a
+ * usable track rather than a knob pinned to the end.
+ */
+const RANGES: { match: RegExp; min: number; max: number; step: number; suffix?: string }[] = [
+  { match: /temperature/i, min: 0, max: 2, step: 0.05 },
+  { match: /top_p/i, min: 0, max: 1, step: 0.05 },
+  { match: /penalty/i, min: -2, max: 2, step: 0.1 },
+  { match: /min_score/i, min: 0, max: 1, step: 0.01 },
+  { match: /top_k/i, min: 1, max: 20, step: 1 },
+  { match: /max_tokens/i, min: 128, max: 8192, step: 128 },
+  { match: /iterations/i, min: 1, max: 12, step: 1 },
+  { match: /max_.*chars/i, min: 200, max: 8000, step: 100, suffix: "ch" },
+];
+
+const rangeFor = (key: string, value: number) => {
+  const range = RANGES.find((entry) => entry.match.test(key));
+  return range ? { ...range, max: Math.max(range.max, value) } : null;
+};
+
+/**
+ * Field names come from the server, so sections are matched by pattern rather
+ * than enumerated. Order is the render order; "Advanced" is the catch-all that
+ * guarantees an unrecognised field is still shown rather than silently dropped.
+ */
+const SECTIONS: { title: string; hint: string; match: RegExp }[] = [
+  { title: "Model", hint: "Which endpoint answers a turn.", match: /model|base_?url|api_base|provider/i },
+  {
+    title: "Generation",
+    hint: "How the model writes its reply.",
+    match: /temperature|top_p|max_tokens|penalty|stop|seed/i,
+  },
+  {
+    title: "Retrieval",
+    hint: "How the knowledge base is searched.",
+    match: /kb|knowledge|top_k|min_score|embed|rag|chunk|rerank/i,
+  },
+  { title: "Tools", hint: "What the bot is allowed to call.", match: /tool/i },
+  { title: "Prompts", hint: "The instructions prepended to every turn.", match: /prompt|persona|system/i },
+];
+
+const sectionFor = (key: string) => SECTIONS.find((section) => section.match.test(key))?.title ?? "Advanced";
 
 export function Tuning() {
   const { bundle, loading, error, reload } = useConfigBundle();
@@ -55,12 +96,58 @@ export function Tuning() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  // Fields whose JSON currently does not parse. Save is blocked while any is
+  // present, so an unparsed string can never reach the API as a value.
+  const [invalidJson, setInvalidJson] = useState<Record<string, true>>({});
 
   useEffect(() => {
     if (bundle) setDraft({ ...bundle.config });
   }, [bundle]);
 
   const editableFields = useMemo(() => bundle?.editable_fields ?? [], [bundle]);
+
+  // The primary and fallback endpoints are the same pair of field shapes, so
+  // they are located the same way over two disjoint halves of the field list.
+  const { modelField, baseUrlField } = useMemo(
+    () => findModelFields(editableFields.filter((field) => !/fallback/i.test(field))),
+    [editableFields],
+  );
+  const { modelField: fallbackModelField, baseUrlField: fallbackBaseUrlField } = useMemo(
+    () => findModelFields(editableFields.filter((field) => /fallback/i.test(field))),
+    [editableFields],
+  );
+
+  /** Endpoint fields are folded into their picker, so they never render alone. */
+  const foldedFields = useMemo(() => {
+    const folded = new Set<string>();
+    if (modelField && baseUrlField) folded.add(baseUrlField);
+    if (fallbackModelField && fallbackBaseUrlField) folded.add(fallbackBaseUrlField);
+    return folded;
+  }, [modelField, baseUrlField, fallbackModelField, fallbackBaseUrlField]);
+
+  const columns = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const key of editableFields) {
+      if (foldedFields.has(key) || managedElsewhere(key)) continue;
+      const title = sectionFor(key);
+      map.set(title, [...(map.get(title) ?? []), key]);
+    }
+    const order = [...SECTIONS.map((section) => section.title), "Advanced"];
+    const sections = order
+      .filter((title) => (map.get(title)?.length ?? 0) > 0)
+      .map((title) => ({
+        title,
+        hint: SECTIONS.find((section) => section.title === title)?.hint ?? "Everything else this config exposes.",
+        keys: map.get(title) ?? [],
+      }));
+
+    const right = sections.filter((section) => RIGHT_COLUMN.has(section.title));
+    // With nothing to put on the right, the left column takes everything rather
+    // than leaving an empty panel beside it.
+    return right.length > 0
+      ? { left: sections.filter((section) => !RIGHT_COLUMN.has(section.title)), right }
+      : { left: sections, right: [] };
+  }, [editableFields, foldedFields]);
 
   const patch = useMemo<Json>(() => {
     if (!bundle) return {};
@@ -73,6 +160,18 @@ export function Tuning() {
 
   const changed = Object.keys(patch).length;
   const isDirty = changed > 0;
+  const hasInvalidJson = Object.keys(invalidJson).length > 0;
+
+  const markJson = (key: string, valid: boolean) =>
+    setInvalidJson((prev) => {
+      if (valid) {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return prev[key] ? prev : { ...prev, [key]: true };
+    });
 
   const save = async () => {
     setSaving(true);
@@ -92,11 +191,47 @@ export function Tuning() {
     }
   };
 
+  /** Both columns render sections the same way; only the grouping differs. */
+  const renderSection = (section: { title: string; hint: string; keys: string[] }) =>
+    bundle && (
+      <Section
+        key={section.title}
+        title={section.title}
+        hint={section.hint}
+        changedCount={section.keys.filter((key) => key in patch).length}
+        defaultOpen={section.title !== "Advanced"}
+      >
+        {section.keys.map((key) =>
+          key === modelField || key === fallbackModelField ? (
+            <ModelField
+              key={key}
+              bundle={bundle}
+              modelField={key}
+              baseUrlField={key === modelField ? baseUrlField : fallbackBaseUrlField}
+              draft={draft}
+              error={fieldErrors[key]}
+              onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
+            />
+          ) : (
+            <ConfigField
+              key={key}
+              name={key}
+              value={draft[key]}
+              defaultValue={bundle.defaults[key]}
+              error={fieldErrors[key]}
+              onChange={(value) => setDraft((prev) => ({ ...prev, [key]: value }))}
+              onJsonValidity={(valid) => markJson(key, valid)}
+            />
+          ),
+        )}
+      </Section>
+    );
+
   return (
     <>
       <PageHeader
         title="Tuning"
-        description="Runtime configuration. Test a draft in the playground before saving it — the playground runs your unsaved changes without persisting them."
+        description="Runtime configuration for the bot. Changes are versioned; test them on the Playground page before saving."
         meta={
           <>
             {bundle && <Badge tone="accent">v{bundle.version}</Badge>}
@@ -108,8 +243,10 @@ export function Tuning() {
 
       <AsyncBlock loading={loading && !bundle} error={error} onRetry={reload}>
         {bundle && (
-          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-            <div className="space-y-4">
+          <>
+            {saveError && <Alert onDismiss={() => setSaveError(null)}>{saveError}</Alert>}
+
+            <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
               <Panel
                 title="Editable settings"
                 description={`${editableFields.length} fields`}
@@ -119,45 +256,301 @@ export function Tuning() {
                   </Button>
                 }
               >
-                <div className="space-y-4">
-                  {saveError && <Alert onDismiss={() => setSaveError(null)}>{saveError}</Alert>}
-
-                  {editableFields.map((key) => (
-                    <ConfigField
-                      key={key}
-                      name={key}
-                      value={draft[key]}
-                      defaultValue={bundle.defaults[key]}
-                      availableTools={bundle.available_tools}
-                      error={fieldErrors[key]}
-                      onChange={(value) => setDraft((prev) => ({ ...prev, [key]: value }))}
-                    />
-                  ))}
-
-                  <div className="space-y-3 border-t border-adm-line pt-4">
-                    <Input
-                      label="Change note (optional)"
-                      value={note}
-                      placeholder="Why this change?"
-                      onChange={(event) => setNote(event.target.value)}
-                    />
-                    <Button variant="primary" loading={saving} disabled={!isDirty} onClick={() => void save()}>
-                      <Save className="h-3.5 w-3.5" />
-                      Save {changed || ""} change{changed === 1 ? "" : "s"}
-                    </Button>
-                  </div>
+                <div className="space-y-2.5">
+                  {columns.left.map(renderSection)}
+                  <p className="px-1 pt-1 text-xs text-adm-mute">
+                    The model catalog lives on{" "}
+                    <Link href="/admin/chatbot/models" className="text-adm-accent hover:underline">
+                      Models
+                    </Link>
+                    , the callable tools on{" "}
+                    <Link href="/admin/chatbot/functions" className="text-adm-accent hover:underline">
+                      Functions
+                    </Link>
+                    .
+                  </p>
                 </div>
               </Panel>
 
-              <LockedPanel locked={bundle.locked} />
-              <HistoryPanel activeVersion={bundle.version} onReverted={reload} />
+              <div className="space-y-2.5">
+                {columns.right.map(renderSection)}
+                <LockedPanel locked={bundle.locked} />
+              </div>
             </div>
 
-            <PlaygroundPanel patch={patch} isDirty={isDirty} />
-          </div>
+            {/* One save bar for both columns. The scroll container in AdminShell
+                is the sticky ancestor, so no extra wrapper is needed. */}
+            <div className="sticky bottom-0 z-10 space-y-2 rounded-2xl border border-adm-line bg-adm-surface/95 px-4 py-3 backdrop-blur">
+              {hasInvalidJson && (
+                <Alert tone="warn">
+                  {Object.keys(invalidJson).map(humanize).join(", ")} contain
+                  {Object.keys(invalidJson).length === 1 ? "s" : ""} invalid JSON. Fix it before saving.
+                </Alert>
+              )}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    value={note}
+                    placeholder="Change note (optional)"
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="primary"
+                  loading={saving}
+                  disabled={!isDirty || hasInvalidJson}
+                  onClick={() => void save()}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  Save {changed || ""} change{changed === 1 ? "" : "s"}
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </AsyncBlock>
     </>
+  );
+}
+
+/** A collapsible group of related fields inside the settings panel. */
+function Section({
+  title,
+  hint,
+  changedCount,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  hint: string;
+  changedCount: number;
+  defaultOpen: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-adm-line bg-adm-bg/40">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors duration-150 hover:bg-white/[0.03]"
+      >
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-adm-mute transition-transform duration-200 ${
+            open ? "" : "-rotate-90"
+          }`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium text-adm-text">{title}</span>
+          <span className="block truncate text-xs text-adm-mute">{hint}</span>
+        </span>
+        {changedCount > 0 && <Badge tone="warn">{changedCount} changed</Badge>}
+      </button>
+      {open && <div className="space-y-3 border-t border-adm-line px-3.5 py-3">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * The model and endpoint keys are two config fields but one decision, so they
+ * are edited together and written back as a single draft update.
+ */
+function ModelField({
+  bundle,
+  modelField,
+  baseUrlField,
+  draft,
+  error,
+  onChange,
+}: {
+  bundle: AdminConfigBundle;
+  modelField: string;
+  baseUrlField: string | null;
+  draft: Json;
+  error?: string;
+  onChange: (patch: Json) => void;
+}) {
+  const model = typeof draft[modelField] === "string" ? (draft[modelField] as string) : "";
+  const baseUrl = baseUrlField && typeof draft[baseUrlField] === "string" ? (draft[baseUrlField] as string) : "";
+  const value: ModelChoice | null = model || baseUrl ? { model, base_url: baseUrl } : null;
+
+  return (
+    <div>
+      <ModelPicker
+        bundle={bundle}
+        value={value}
+        onChange={(next) =>
+          onChange({
+            [modelField]: next?.model ?? "",
+            ...(baseUrlField ? { [baseUrlField]: next?.base_url ?? "" } : {}),
+          })
+        }
+        label={humanize(modelField)}
+        error={error}
+        hint={
+          baseUrlField
+            ? `Sets ${humanize(modelField).toLowerCase()} and ${humanize(baseUrlField).toLowerCase()} together.`
+            : undefined
+        }
+      />
+      {value && !isChoiceReady(value) && (
+        <p className="mt-1 text-xs text-adm-warn">
+          Pick a supported provider and enter a model id.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Holds its own text so an in-progress edit is never parsed away mid-keystroke.
+ * `onChange` fires only on valid JSON; while it does not parse the draft keeps
+ * its last good value and `onValidity(false)` blocks the save.
+ */
+function JsonField({
+  label,
+  value,
+  error,
+  onChange,
+  onValidity,
+}: {
+  label: string;
+  value: unknown;
+  error?: string;
+  onChange: (value: unknown) => void;
+  onValidity: (valid: boolean) => void;
+}) {
+  const [text, setText] = useState(() => JSON.stringify(value ?? null, null, 2));
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  // Re-sync when the value changes from the outside (Reset, or a reload after
+  // save) -- but not while this field is the one being edited.
+  useEffect(() => {
+    if (parseError) return;
+    const serialized = JSON.stringify(value ?? null, null, 2);
+    setText((prev) => {
+      try {
+        return JSON.stringify(JSON.parse(prev)) === JSON.stringify(value ?? null) ? prev : serialized;
+      } catch {
+        return serialized;
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  useEffect(() => () => onValidity(true), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handle = (next: string) => {
+    setText(next);
+    try {
+      const parsed = JSON.parse(next);
+      setParseError(null);
+      onValidity(true);
+      onChange(parsed);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Invalid JSON.");
+      onValidity(false);
+    }
+  };
+
+  return (
+    <Textarea
+      label={`${label} (JSON)`}
+      rows={4}
+      value={text}
+      error={parseError ?? error}
+      hint={parseError ? undefined : "Saved only when this parses as JSON."}
+      onChange={(event) => handle(event.target.value)}
+    />
+  );
+}
+
+/** A list of plain strings edits better as tags than as a JSON blob. */
+function StringListField({
+  label,
+  value,
+  error,
+  onChange,
+  onJsonValidity,
+}: {
+  label: string;
+  value: string[];
+  error?: string;
+  onChange: (value: unknown) => void;
+  onJsonValidity: (valid: boolean) => void;
+}) {
+  const [entry, setEntry] = useState("");
+  const [raw, setRaw] = useState(false);
+
+  if (raw) {
+    return (
+      <div>
+        <JsonField label={label} value={value} error={error} onChange={onChange} onValidity={onJsonValidity} />
+        <button
+          type="button"
+          onClick={() => setRaw(false)}
+          className="mt-1 text-xs text-adm-accent hover:underline"
+        >
+          Back to list
+        </button>
+      </div>
+    );
+  }
+
+  const add = () => {
+    const next = entry.trim();
+    if (!next || value.includes(next)) return;
+    onChange([...value, next]);
+    setEntry("");
+  };
+
+  return (
+    <div>
+      <span className="mb-1.5 block text-xs font-medium text-adm-dim">{label}</span>
+      {value.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {value.map((item) => (
+            <span
+              key={item}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-adm-line bg-adm-bg px-2.5 py-1 text-xs text-adm-dim"
+            >
+              <span className="truncate">{item}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${item}`}
+                onClick={() => onChange(value.filter((candidate) => candidate !== item))}
+                className="shrink-0 text-adm-mute transition-colors hover:text-adm-bad"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          value={entry}
+          placeholder="Add an item…"
+          onChange={(event) => setEntry(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+          className="h-9 w-full rounded-xl border border-adm-line bg-adm-bg/80 px-3 text-[13px] text-adm-text placeholder:text-adm-mute outline-none transition-all duration-200 hover:border-adm-line-strong focus:border-adm-line-focus"
+        />
+        <Button size="sm" className="h-9" disabled={!entry.trim()} onClick={add}>
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
+      </div>
+      {error && <span className="mt-1 block text-xs text-adm-bad">{error}</span>}
+      <button type="button" onClick={() => setRaw(true)} className="mt-1 text-xs text-adm-mute hover:text-adm-accent">
+        Edit as JSON
+      </button>
+    </div>
   );
 }
 
@@ -165,59 +558,54 @@ function ConfigField({
   name,
   value,
   defaultValue,
-  availableTools,
   error,
   onChange,
+  onJsonValidity,
 }: {
   name: string;
   value: unknown;
   defaultValue: unknown;
-  availableTools: string[];
   error?: string;
   onChange: (value: unknown) => void;
+  onJsonValidity: (valid: boolean) => void;
 }) {
   const label = humanize(name);
   const reference = value ?? defaultValue;
-
-  if (isToolField(name) && Array.isArray(reference)) {
-    const enabled = new Set((Array.isArray(value) ? value : []) as string[]);
-    return (
-      <div>
-        <span className="mb-1.5 block text-xs font-medium text-adm-dim">{label}</span>
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          {availableTools.map((tool) => (
-            <Toggle
-              key={tool}
-              label={tool}
-              checked={enabled.has(tool)}
-              onChange={(checked) => {
-                const next = new Set(enabled);
-                if (checked) next.add(tool);
-                else next.delete(tool);
-                onChange(availableTools.filter((item) => next.has(item)));
-              }}
-            />
-          ))}
-        </div>
-        {error && <span className="mt-1 block text-xs text-adm-bad">{error}</span>}
-      </div>
-    );
-  }
 
   if (typeof reference === "boolean") {
     return <Toggle label={label} checked={Boolean(value)} onChange={onChange} />;
   }
 
   if (typeof reference === "number") {
+    const current = typeof value === "number" ? value : null;
+    const range = rangeFor(name, current ?? reference);
+    const hint = defaultValue !== undefined ? `Default: ${String(defaultValue)}` : undefined;
+
+    if (range) {
+      return (
+        <Slider
+          label={label}
+          value={current}
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          suffix={range.suffix}
+          hint={hint}
+          error={error}
+          onChange={onChange}
+        />
+      );
+    }
+
     const isFloat = !Number.isInteger(reference) || name.includes("score") || name.includes("temperature");
     return (
       <Input
         label={label}
         type="number"
         step={isFloat ? "0.01" : "1"}
-        value={value === null || value === undefined ? "" : String(value)}
+        value={current === null ? "" : String(current)}
         error={error}
-        hint={defaultValue !== undefined ? `Default: ${String(defaultValue)}` : undefined}
+        hint={hint}
         onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
       />
     );
@@ -227,7 +615,7 @@ function ConfigField({
     return (
       <Textarea
         label={label}
-        rows={10}
+        rows={6}
         value={typeof value === "string" ? value : ""}
         error={error}
         onChange={(event) => onChange(event.target.value)}
@@ -235,22 +623,23 @@ function ConfigField({
     );
   }
 
+  const current = value ?? reference;
+
+  if (Array.isArray(current) && current.every((item) => typeof item === "string")) {
+    return (
+      <StringListField
+        label={label}
+        value={current as string[]}
+        error={error}
+        onChange={onChange}
+        onJsonValidity={onJsonValidity}
+      />
+    );
+  }
+
   if (Array.isArray(reference) || (reference !== null && typeof reference === "object")) {
     return (
-      <Textarea
-        label={`${label} (JSON)`}
-        rows={5}
-        value={typeof value === "string" ? value : JSON.stringify(value ?? reference, null, 2)}
-        error={error}
-        hint="Invalid JSON is held as text until it parses."
-        onChange={(event) => {
-          try {
-            onChange(JSON.parse(event.target.value));
-          } catch {
-            onChange(event.target.value);
-          }
-        }}
-      />
+      <JsonField label={label} value={current} error={error} onChange={onChange} onValidity={onJsonValidity} />
     );
   }
 
@@ -289,193 +678,6 @@ function LockedPanel({ locked }: { locked: Json }) {
           ),
         ])}
       />
-    </Panel>
-  );
-}
-
-function HistoryPanel({ activeVersion, onReverted }: { activeVersion: number; onReverted: () => void }) {
-  const history = useAdminResource(() => configApi.history(50), [activeVersion]);
-  const [reverting, setReverting] = useState<number | null>(null);
-  const [revertError, setRevertError] = useState<string | null>(null);
-
-  const revert = async (version: number) => {
-    setReverting(version);
-    setRevertError(null);
-    try {
-      await configApi.revert(version, `Reverted to v${version}`);
-      onReverted();
-      history.refresh();
-    } catch (err) {
-      setRevertError(err instanceof Error ? err.message : "Revert failed.");
-    } finally {
-      setReverting(null);
-    }
-  };
-
-  return (
-    <Panel
-      title={
-        <span className="flex items-center gap-2">
-          <History className="h-3.5 w-3.5 text-adm-mute" /> Version history
-        </span>
-      }
-      padded={false}
-    >
-      {revertError && (
-        <div className="p-5 pb-0">
-          <Alert onDismiss={() => setRevertError(null)}>{revertError}</Alert>
-        </div>
-      )}
-      <AsyncBlock
-        loading={history.loading && !history.data}
-        error={history.error}
-        onRetry={history.refresh}
-        isEmpty={(history.data ?? []).length === 0}
-        emptyTitle="No saved versions yet."
-      >
-        <Rows>
-          {(history.data ?? []).map((row) => (
-            <Row key={row.version}>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="adm-nums text-[13px] font-medium text-adm-text">v{row.version}</span>
-                  {row.is_active && <Badge tone="good">active</Badge>}
-                </div>
-                <p className="mt-0.5 truncate text-xs text-adm-dim">{row.note || "No note"}</p>
-                <p className="adm-nums text-xs text-adm-mute">{formatTimestamp(row.created_at)}</p>
-              </div>
-              <Button
-                size="sm"
-                disabled={row.is_active}
-                loading={reverting === row.version}
-                onClick={() => void revert(row.version)}
-              >
-                Revert
-              </Button>
-            </Row>
-          ))}
-        </Rows>
-      </AsyncBlock>
-    </Panel>
-  );
-}
-
-function PlaygroundPanel({ patch, isDirty }: { patch: Json; isDirty: boolean }) {
-  const [message, setMessage] = useState("");
-  const [useDraft, setUseDraft] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<PlaygroundResponse | null>(null);
-  const [runError, setRunError] = useState<string | null>(null);
-
-  const send = async (resetFirst = false) => {
-    if (!message.trim()) return;
-    setRunning(true);
-    setRunError(null);
-    try {
-      const response = await playground.chat({
-        message: message.trim(),
-        session_id: PLAYGROUND_SESSION,
-        config_patch: useDraft && isDirty ? patch : undefined,
-        reset_first: resetFirst,
-      });
-      setResult(response);
-    } catch (err) {
-      setRunError(err instanceof Error ? err.message : "Playground request failed.");
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  return (
-    <Panel
-      title={
-        <span className="flex items-center gap-2">
-          <Play className="h-3.5 w-3.5 text-adm-accent" /> Playground
-        </span>
-      }
-      description={
-        isDirty
-          ? useDraft
-            ? "Running against your unsaved draft."
-            : "Running against the saved config."
-          : "No unsaved changes — running the saved config."
-      }
-      actions={
-        <Button size="sm" onClick={() => void playground.reset(PLAYGROUND_SESSION)}>
-          <RotateCcw className="h-3.5 w-3.5" /> Reset session
-        </Button>
-      }
-    >
-      <div className="space-y-3">
-        <Toggle
-          label="Use unsaved draft"
-          hint="Sends the pending patch as config_patch"
-          checked={useDraft}
-          disabled={!isDirty}
-          onChange={setUseDraft}
-        />
-
-        <Textarea
-          rows={4}
-          mono={false}
-          value={message}
-          placeholder="Ask the bot something…"
-          onChange={(event) => setMessage(event.target.value)}
-        />
-
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" loading={running} disabled={!message.trim()} onClick={() => void send(false)}>
-            <Send className="h-3.5 w-3.5" /> Send
-          </Button>
-          <Button loading={running} disabled={!message.trim()} onClick={() => void send(true)}>
-            Send fresh
-          </Button>
-        </div>
-
-        {runError && <Alert onDismiss={() => setRunError(null)}>{runError}</Alert>}
-
-        {running && (
-          <p className="flex items-center gap-2 text-[13px] text-adm-mute">
-            <Spinner /> Waiting for the model…
-          </p>
-        )}
-
-        {result && !running && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-1.5">
-              {result.model && <Badge tone="accent">{result.model}</Badge>}
-              {result.fallback_used && <Badge tone="warn">fallback used</Badge>}
-              {typeof result.latency_ms === "number" && <Badge>{formatNumber(result.latency_ms)} ms</Badge>}
-              {typeof result.total_tokens === "number" && <Badge>{formatNumber(result.total_tokens)} tokens</Badge>}
-              {typeof result.iterations === "number" && <Badge>{result.iterations} iterations</Badge>}
-            </div>
-
-            {result.error && <Alert>{result.error}</Alert>}
-
-            {result.reply && (
-              <div className="rounded-xl border border-adm-accent/20 bg-gradient-to-br from-adm-accent/8 to-transparent p-4">
-                <p className="break-words whitespace-pre-wrap text-[13px] text-adm-text">{result.reply}</p>
-              </div>
-            )}
-
-            {(result.tool_calls ?? []).length > 0 && (
-              <div>
-                <h3 className="mb-2 text-xs font-semibold tracking-wide text-adm-mute uppercase">Tool calls</h3>
-                <div className="space-y-2">
-                  {(result.tool_calls ?? []).map((call, index) => (
-                    <div key={index} className="rounded-xl border border-adm-line bg-adm-bg p-3">
-                      <p className="font-mono text-xs text-adm-accent">{call.tool}</p>
-                      <pre className="adm-scroll mt-1 overflow-x-auto text-[11px] text-adm-mute">
-                        {JSON.stringify(call.arguments ?? {}, null, 2)}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </Panel>
   );
 }

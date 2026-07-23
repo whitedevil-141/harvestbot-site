@@ -56,9 +56,9 @@ const resolveDiscordRedirectUri = () => {
   const configured = process.env.NEXT_PUBLIC_DISCORD_REDIRECT_URI;
   if (configured && configured.trim()) return configured.trim();
   if (window.location.hostname === "localhost") {
-    return "https://harvestbot.app/verify";
+    return "https://harvestbot.app/payment";
   }
-  return `${window.location.origin}/verify`;
+  return `${window.location.origin}/payment`;
 };
 
 const getCleanReturnUrl = () => {

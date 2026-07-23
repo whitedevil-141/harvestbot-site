@@ -1,31 +1,34 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { CheckCircle2, ExternalLink, HelpCircle, KeyRound, Plus, Save, Trash2, Wrench, Zap } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Plus, Save, Trash2, Wrench, Zap } from "lucide-react";
 import {
   MODEL_CATALOG_LIMIT,
   config as configApi,
-  isHttpUrl,
+  flattenCatalog,
+  flattenPresets,
+  isAllowedLlmHost,
   modelKey,
   probeLatency,
   system,
-  type ModelCatalogEntry,
+  type AdminConfigBundle,
   type ProbeResult,
+  type ProviderKey,
 } from "@/lib/chatbot-admin";
 import {
   Alert,
   AsyncBlock,
   Badge,
   Button,
-  Chip,
+  EmptyState,
   IconButton,
-  Input,
   Modal,
   PageHeader,
   Panel,
-  Row,
   Rows,
-  Select,
+  SearchInput,
+  Spinner,
+  StatusDot,
   Table,
   Td,
   Th,
@@ -33,9 +36,165 @@ import {
   formatUsd,
 } from "../ui";
 import { useConfigBundle } from "./ConfigContext";
+import { ModelPicker, isChoiceReady, type ModelChoice } from "./ModelPicker";
 
-type DraftEntry = { key: string; model: string; base_url: string; label?: string | null; provider?: string | null };
-type AddMethod = "preset" | "custom";
+type DraftEntry = {
+  key: string;
+  model: string;
+  base_url: string;
+  /** Free-text operator note. Matches ModelEntry.note on the server. */
+  note?: string | null;
+  provider?: string | null;
+};
+
+/** The catalog only needs a search box once it stops fitting on screen. */
+const SEARCH_THRESHOLD = 8;
+
+/** Where a configured key came from, in the words the operator needs. */
+const SOURCE_HINT: Record<string, string> = {
+  stored: "set here",
+  env: "from environment",
+  slot: "from environment (legacy slot key)",
+};
+
+/**
+ * One provider's key. The stored value never leaves the server, so this only
+ * ever sets or clears: the row shows status, and opens an input on demand
+ * rather than holding a field per provider on screen at all times.
+ *
+ * Only a key set here can be removed. Clearing an environment-provided one is
+ * not something this page can do -- the delete would appear to work and the
+ * key would still resolve on the next turn -- so the button is simply absent,
+ * and the source badge says why.
+ */
+function ProviderKeyRow({
+  entry,
+  probe,
+  onSaved,
+}: {
+  entry: ProviderKey;
+  probe?: ProbeResult;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [reveal, setReveal] = useState(false);
+  const [busy, setBusy] = useState<"save" | "clear" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const close = () => {
+    setEditing(false);
+    setValue("");
+    setReveal(false);
+    setError(null);
+  };
+
+  const save = async () => {
+    const key = value.trim();
+    if (!key) return;
+    setBusy("save");
+    setError(null);
+    try {
+      await system.setProviderKey(entry.provider, key);
+      close();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save that key.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const clear = async () => {
+    setBusy("clear");
+    setError(null);
+    try {
+      await system.deleteProviderKey(entry.provider);
+      close();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove that key.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    // A plain <li> rather than <Row>: this row stacks an edit field under its
+    // header, which Row's fixed `flex items-start` layout does not allow.
+    <li className="space-y-2 px-5 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusDot tone={entry.configured ? "good" : "warn"} />
+        <span className="text-[13px] font-medium text-adm-text">{entry.provider}</span>
+        <span className="truncate font-mono text-[11px] text-adm-mute">{entry.env}</span>
+        {entry.configured && entry.source && (
+          <Badge tone={entry.source === "stored" ? "accent" : "neutral"}>
+            {SOURCE_HINT[entry.source] ?? entry.source}
+          </Badge>
+        )}
+        {probe && (
+          <Badge tone={probe.ok ? "good" : "bad"} title={probe.error ?? undefined}>
+            {probe.ok ? probeLatency(probe) : "unreachable"}
+          </Badge>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {!editing && (
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+              {entry.configured ? "Replace" : "Set key"}
+            </Button>
+          )}
+          {entry.source === "stored" && !editing && (
+            <IconButton
+              label={`Remove ${entry.provider} key`}
+              danger
+              disabled={busy !== null}
+              onClick={() => void clear()}
+            >
+              {busy === "clear" ? <Spinner className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+            </IconButton>
+          )}
+        </span>
+      </div>
+
+      {editing && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="relative min-w-0 flex-1">
+            <input
+              autoFocus
+              type={reveal ? "text" : "password"}
+              value={value}
+              placeholder={`Paste the ${entry.provider} key…`}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void save();
+                if (event.key === "Escape") close();
+              }}
+              className="h-8 w-full rounded-lg border border-adm-line bg-adm-bg/80 pl-3 pr-9 font-mono text-xs text-adm-text placeholder:font-sans placeholder:text-adm-mute outline-none transition-all duration-200 hover:border-adm-line-strong focus:border-adm-line-focus"
+            />
+            <button
+              type="button"
+              aria-label={reveal ? "Hide key" : "Show key"}
+              onClick={() => setReveal((prev) => !prev)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-adm-mute transition-colors hover:text-adm-text"
+            >
+              {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </span>
+          <Button size="sm" variant="primary" loading={busy === "save"} disabled={!value.trim()} onClick={() => void save()}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" onClick={close}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-adm-bad">{error}</p>}
+    </li>
+  );
+}
 
 function ToolCallingBadge({ status }: { status: string | null | undefined }) {
   if (!status) return null;
@@ -74,20 +233,19 @@ export function Models() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addMethod, setAddMethod] = useState<AddMethod>("preset");
+  const [search, setSearch] = useState("");
 
-  const serverEntries = useMemo<DraftEntry[]>(() => {
-    if (!bundle) return [];
-    return bundle.model_catalog.flatMap((group) =>
-      group.entries.map((entry: ModelCatalogEntry) => ({
-        key: entry.key ?? modelKey(entry.base_url, entry.model),
+  const serverEntries = useMemo<DraftEntry[]>(
+    () =>
+      flattenCatalog(bundle).map((entry) => ({
+        key: entry.key,
         model: entry.model,
         base_url: entry.base_url,
-        label: entry.label ?? null,
-        provider: entry.provider ?? group.provider,
+        note: entry.note ?? null,
+        provider: entry.provider ?? null,
       })),
-    );
-  }, [bundle]);
+    [bundle],
+  );
 
   const draft = entries ?? serverEntries;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(serverEntries);
@@ -108,19 +266,24 @@ export function Models() {
     return fromCatalog ?? known ?? null;
   };
 
-  const addEntry = (candidate: { base_url: string; model: string; label?: string | null; provider?: string | null }) => {
+  /** The provider label the server would assign this endpoint, for a new row. */
+  const providerFor = (baseUrl: string) =>
+    [...serverEntries, ...flattenPresets(bundle)].find((entry) => entry.base_url === baseUrl)
+      ?.provider ?? null;
+
+  const addEntry = (candidate: { base_url: string; model: string; note?: string | null }) => {
     const baseUrl = candidate.base_url.trim();
     const model = candidate.model.trim();
 
-    if (!isHttpUrl(baseUrl)) return "Base URL must start with http:// or https://";
+    if (!isAllowedLlmHost(baseUrl)) return "Pick a supported provider.";
     if (!model) return "Model is required.";
     const key = modelKey(baseUrl, model);
-    if (draft.some((entry) => entry.key === key)) return "That base URL and model are already in the catalog.";
+    if (draft.some((entry) => entry.key === key)) return "That provider and model are already in the catalog.";
     if (draft.length >= MODEL_CATALOG_LIMIT) return `The catalog is capped at ${MODEL_CATALOG_LIMIT} entries.`;
 
     setEntries([
       ...draft,
-      { key, base_url: baseUrl, model, label: candidate.label ?? null, provider: candidate.provider ?? null },
+      { key, base_url: baseUrl, model, note: candidate.note ?? null, provider: providerFor(baseUrl) },
     ]);
     return null;
   };
@@ -158,10 +321,14 @@ export function Models() {
     try {
       await configApi.put(
         {
-          [catalogField]: draft.map(({ base_url, model, label }) => ({
+          // Exactly the shape ModelEntry accepts: it forbids extra keys and
+          // requires a provider, so an entry missing one is a 422 on save
+          // rather than a field the server quietly ignores.
+          [catalogField]: draft.map(({ base_url, model, note, provider }) => ({
+            provider: provider || providerFor(base_url) || new URL(base_url).hostname,
             base_url,
             model,
-            ...(label ? { label } : {}),
+            note: note ?? "",
           })),
         },
         "Model catalog update",
@@ -179,30 +346,54 @@ export function Models() {
   const allConfigured = bundle?.provider_keys.every((k) => k.configured) ?? false;
   const missingKeys = bundle?.provider_keys.filter((k) => !k.configured) ?? [];
   const hasCatalog = draft.length > 0;
-  const hasPresets = (bundle?.model_presets.length ?? 0) > 0;
+
+  // Provider check results are shown on the key rows they belong to; anything
+  // that does not match a known provider still gets rendered, just below.
+  const probesByProvider = useMemo(() => {
+    const map = new Map<string, ProbeResult>();
+    for (const result of providerProbes ?? []) {
+      if (result.provider) map.set(result.provider.toLowerCase(), result);
+    }
+    return map;
+  }, [providerProbes]);
+
+  const knownProviders = useMemo(
+    () => new Set((bundle?.provider_keys ?? []).map((entry) => entry.provider.toLowerCase())),
+    [bundle],
+  );
+
+  const unmatchedProbes = (providerProbes ?? []).filter(
+    (result) => !result.provider || !knownProviders.has(result.provider.toLowerCase()),
+  );
+
+  const query = search.trim().toLowerCase();
+  const visible = query
+    ? draft.filter((entry) =>
+        [entry.model, entry.base_url, entry.provider, entry.note]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(query)),
+      )
+    : draft;
 
   return (
     <>
       <PageHeader
         title="Models"
-        description="Configure which LLMs the bot can use. Add a provider preset or a custom endpoint, then probe it to confirm it works."
+        description="Which LLMs the bot can use, and the provider keys that reach them."
         meta={
           <>
             <Badge tone="accent">{draft.length} models</Badge>
+            {missingKeys.length > 0 && <Badge tone="warn">{missingKeys.length} key missing</Badge>}
             {isDirty && <Badge tone="warn">unsaved</Badge>}
           </>
-        }
-        actions={
-          <Button size="sm" loading={checking} onClick={() => void runLlmCheck()}>
-            <Zap className="h-3.5 w-3.5" /> Check all providers
-          </Button>
         }
       />
 
       <AsyncBlock loading={loading && !bundle} error={error} onRetry={reload}>
         {bundle && (
           <>
-            {/* Provider keys — at a glance */}
+            {/* Provider keys. The llm-check results land on these same rows
+                rather than in a second block underneath. */}
             <Panel
               title={
                 <span className="flex items-center gap-2">
@@ -211,51 +402,30 @@ export function Models() {
               }
               description={
                 allConfigured
-                  ? "Every provider key is set. The bot can reach any matching model."
-                  : `${missingKeys.length} key${missingKeys.length > 1 ? "s" : ""} missing — models from that provider will fail until it is set.`
+                  ? `All ${bundle.provider_keys.length} provider keys set.`
+                  : `${missingKeys.length} missing — ${missingKeys.map((k) => k.provider).join(", ")}. Models from those providers fail until a key is set.`
+              }
+              padded={false}
+              actions={
+                <Button size="sm" loading={checking} onClick={() => void runLlmCheck()}>
+                  <Zap className="h-3.5 w-3.5" /> Check all
+                </Button>
               }
             >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Rows>
                 {bundle.provider_keys.map((entry) => (
-                  <div
+                  <ProviderKeyRow
                     key={entry.provider}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
-                      entry.configured
-                        ? "border-adm-good/20 bg-adm-good-dim/30"
-                        : "border-adm-warn/20 bg-adm-warn-dim/30"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-adm-text">{entry.provider}</p>
-                      <p className="truncate font-mono text-[11px] text-adm-mute">{entry.env}</p>
-                    </div>
-                    {entry.configured ? (
-                      <Badge tone="good">
-                        <CheckCircle2 className="mr-1 inline h-3 w-3" />
-                        Set
-                      </Badge>
-                    ) : (
-                      <Badge tone="warn">
-                        <HelpCircle className="mr-1 inline h-3 w-3" />
-                        Missing
-                      </Badge>
-                    )}
-                  </div>
+                    entry={entry}
+                    probe={probesByProvider.get(entry.provider.toLowerCase())}
+                    onSaved={reload}
+                  />
                 ))}
-              </div>
+              </Rows>
 
-              {missingKeys.length > 0 && (
-                <div className="mt-4 rounded-xl border border-adm-warn/20 bg-adm-warn-dim/20 px-4 py-3 text-[13px] text-adm-warn">
-                  Set <span className="font-mono font-semibold">{missingKeys.map((k) => k.env).join(", ")}</span> in the
-                  server environment, then reload this page. The bot cannot reach models hosted by these providers until
-                  the key is present.
-                </div>
-              )}
-
-              {providerProbes && (
-                <div className="mt-5 space-y-2 border-t border-adm-line pt-5">
-                  <p className="text-xs font-medium text-adm-dim">Provider check results</p>
-                  {providerProbes.map((result, index) => (
+              {unmatchedProbes.length > 0 && (
+                <div className="space-y-1.5 border-t border-adm-line px-5 py-3">
+                  {unmatchedProbes.map((result, index) => (
                     <div key={index} className="flex flex-wrap items-center gap-2">
                       <span className="text-[13px] text-adm-dim">
                         {result.provider ?? "provider"}
@@ -279,8 +449,29 @@ export function Models() {
               padded={false}
               actions={
                 <>
+                  {hasCatalog && draft.length > SEARCH_THRESHOLD && (
+                    <SearchInput
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Filter models…"
+                      className="w-44"
+                    />
+                  )}
+                  {hasCatalog && (
+                    <Button
+                      size="sm"
+                      loading={probing !== null}
+                      onClick={async () => {
+                        for (const entry of draft) {
+                          if (!probes[entry.key]) await probeEntry(entry);
+                        }
+                      }}
+                    >
+                      <Zap className="h-3.5 w-3.5" /> Test all
+                    </Button>
+                  )}
                   <Button size="sm" onClick={() => setAddModalOpen(true)} disabled={draft.length >= MODEL_CATALOG_LIMIT}>
-                    <Plus className="h-3.5 w-3.5" /> Add model
+                    <Plus className="h-3.5 w-3.5" /> Add
                   </Button>
                   <Button size="sm" disabled={!isDirty} onClick={() => setEntries(null)}>
                     Discard
@@ -304,54 +495,56 @@ export function Models() {
               )}
 
               {!hasCatalog && !isDirty && (
-                <div className="flex flex-col items-center gap-4 px-5 py-12 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-adm-line bg-adm-surface-2 text-adm-mute">
-                    <Wrench className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-medium text-adm-dim">No models configured yet</p>
-                    <p className="mt-1 max-w-sm text-xs text-adm-mute">
-                      Add a preset from your provider or enter a custom endpoint. Each model must pass a probe before the
-                      bot can use it.
-                    </p>
-                  </div>
-                  <Button variant="primary" onClick={() => setAddModalOpen(true)}>
-                    <Plus className="h-3.5 w-3.5" /> Add your first model
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={<Wrench className="h-5 w-5" />}
+                  title="No models configured yet"
+                  hint="Add a preset from your provider, or enter a custom endpoint."
+                  action={
+                    <Button variant="primary" onClick={() => setAddModalOpen(true)}>
+                      <Plus className="h-3.5 w-3.5" /> Add your first model
+                    </Button>
+                  }
+                />
               )}
 
-              {hasCatalog && (
+              {hasCatalog && visible.length === 0 && (
+                <EmptyState title="No models match that filter." hint={`Searching ${draft.length} entries.`} />
+              )}
+
+              {hasCatalog && visible.length > 0 && (
+                // The endpoint sits under the model name rather than in its own
+                // column: it is long, rarely scanned, and cost one full column.
                 <Table
                   head={
                     <>
                       <Th>Model</Th>
-                      <Th>Endpoint</Th>
                       <Th>Pricing / 1M</Th>
                       <Th>Status</Th>
                       <Th align="right" />
                     </>
                   }
                 >
-                  {draft.map((entry) => {
+                  {visible.map((entry) => {
                     const pricing = pricingFor(entry);
                     const configured = keyConfiguredFor(entry);
                     const probe = probes[entry.key];
                     return (
                       <Tr key={entry.key}>
                         <Td>
-                          <span className="font-mono text-xs text-adm-text">{entry.model}</span>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono text-xs text-adm-text">{entry.model}</span>
                             {entry.provider && <Badge>{entry.provider}</Badge>}
                             {configured === false && <Badge tone="warn">key missing</Badge>}
-                            {entry.label && <span className="text-[11px] text-adm-mute">{entry.label}</span>}
                           </div>
+                          <p className="mt-0.5 truncate font-mono text-[11px] text-adm-mute" title={entry.base_url}>
+                            {entry.base_url}
+                            {entry.note ? ` · ${entry.note}` : ""}
+                          </p>
                         </Td>
-                        <Td className="max-w-xs break-all font-mono text-[11px] text-adm-dim">{entry.base_url}</Td>
                         <Td className="adm-nums whitespace-nowrap">
                           {pricing ? (
                             <>
-                              in {formatUsd(pricing.input)} / out {formatUsd(pricing.output)}
+                              in {formatUsd(pricing.in)} / out {formatUsd(pricing.out)}
                             </>
                           ) : (
                             <span className="text-adm-mute">unknown</span>
@@ -362,7 +555,7 @@ export function Models() {
                             <ProbeSummary result={probe} compact />
                           ) : (
                             <Button size="sm" loading={probing === entry.key} onClick={() => void probeEntry(entry)}>
-                              Test connection
+                              Test
                             </Button>
                           )}
                         </Td>
@@ -381,33 +574,13 @@ export function Models() {
                 </Table>
               )}
             </Panel>
-
-            {/* Quick probe all unsaved or unprobed */}
-            {hasCatalog && (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-adm-line bg-adm-surface px-5 py-3">
-                <span className="text-[13px] text-adm-dim">Not sure your models work?</span>
-                <Button
-                  size="sm"
-                  loading={probing !== null}
-                  onClick={async () => {
-                    for (const entry of draft) {
-                      if (!probes[entry.key]) await probeEntry(entry);
-                    }
-                  }}
-                >
-                  <Zap className="h-3.5 w-3.5" /> Test all connections
-                </Button>
-              </div>
-            )}
           </>
         )}
       </AsyncBlock>
 
       {addModalOpen && (
         <AddModelModal
-          presets={bundle?.model_presets ?? []}
-          existingKeys={new Set(draft.map((e) => e.key))}
-          presetsLoading={loading}
+          bundle={bundle}
           onAdd={(candidate) => {
             const error = addEntry(candidate);
             if (error) return error;
@@ -421,130 +594,97 @@ export function Models() {
   );
 }
 
+/**
+ * One form for both paths: the dropdown lists every preset the providers offer,
+ * and "Other model…" reveals a provider + model-id pair for anything newer than
+ * the preset list. The optional probe runs before the entry reaches the draft,
+ * so an unreachable model is caught here rather than after a save.
+ */
 function AddModelModal({
-  presets,
-  existingKeys,
-  presetsLoading,
+  bundle,
   onAdd,
   onClose,
 }: {
-  presets: { model: string; base_url: string; label?: string | null; provider?: string | null }[];
-  existingKeys: Set<string>;
-  presetsLoading: boolean;
-  onAdd: (candidate: { base_url: string; model: string; label?: string | null; provider?: string | null }) => string | null;
+  bundle: AdminConfigBundle | null;
+  onAdd: (candidate: { base_url: string; model: string; note?: string | null }) => string | null;
   onClose: () => void;
 }) {
-  const [method, setMethod] = useState<AddMethod>(presets.length > 0 ? "preset" : "custom");
-  const [customUrl, setCustomUrl] = useState("");
-  const [customModel, setCustomModel] = useState("");
-  const [customLabel, setCustomLabel] = useState("");
+  // Default to the first preset when there is one; otherwise open on the custom
+  // branch, which is the only way to add anything at all.
+  const [choice, setChoice] = useState<ModelChoice | null>(() => {
+    const preset = flattenPresets(bundle)[0];
+    return preset ? { model: preset.model, base_url: preset.base_url } : { model: "", base_url: "" };
+  });
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [probe, setProbe] = useState<ProbeResult | null>(null);
+  const [probing, setProbing] = useState(false);
 
-  const handleAddPreset = async (preset: typeof presets[number]) => {
-    setError(null);
-    setAdding(true);
+  const ready = choice !== null && isChoiceReady(choice);
+
+  const runProbe = async () => {
+    if (!choice || !ready) return;
+    setProbing(true);
+    setProbe(null);
     try {
-      const err = onAdd(preset);
-      if (err) setError(err);
+      setProbe(await system.llmProbe({ base_url: choice.base_url.trim(), model: choice.model.trim() }));
+    } catch (err) {
+      setProbe({ ok: false, error: err instanceof Error ? err.message : "Probe failed." });
     } finally {
-      setAdding(false);
+      setProbing(false);
     }
   };
 
-  const handleAddCustom = async () => {
+  const handleAdd = () => {
+    if (!choice || !ready) return;
     setError(null);
-    setAdding(true);
-    try {
-      const err = onAdd({ base_url: customUrl, model: customModel, label: customLabel || null });
-      if (err) setError(err);
-    } finally {
-      setAdding(false);
-    }
+    const err = onAdd({
+      base_url: choice.base_url.trim(),
+      model: choice.model.trim(),
+      note: choice.note ?? null,
+    });
+    if (err) setError(err);
   };
 
   return (
-    <Modal title="Add a model" onClose={onClose} size="md">
-      {presets.length > 0 && (
-        <div className="mb-2 flex gap-2">
-          <Chip active={method === "preset"} onClick={() => setMethod("preset")}>
-            From preset
-          </Chip>
-          <Chip active={method === "custom"} onClick={() => setMethod("custom")}>
-            Custom endpoint
-          </Chip>
-        </div>
-      )}
-
-      {method === "preset" && (
-        <div>
-          <p className="mb-3 text-[13px] text-adm-dim">Pick a preset offered by one of your providers.</p>
-          {presets.length === 0 ? (
-            <p className="text-[13px] text-adm-mute">No presets available.</p>
-          ) : (
-            <div className="max-h-64 space-y-2 overflow-y-auto">
-              {presets.map((preset) => {
-                const key = modelKey(preset.base_url, preset.model);
-                const alreadyAdded = existingKeys.has(key);
-                return (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-adm-line bg-adm-bg px-4 py-3 transition-colors hover:border-adm-line-strong"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-[13px] text-adm-text">{preset.model}</p>
-                      <p className="truncate text-[11px] text-adm-mute">{preset.base_url}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={alreadyAdded ? "ghost" : "primary"}
-                      disabled={alreadyAdded || adding}
-                      onClick={() => handleAddPreset(preset)}
-                    >
-                      {alreadyAdded ? "Added" : "Add"}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {method === "custom" && (
-        <div className="space-y-3">
-          <p className="text-[13px] text-adm-dim">
-            Enter any OpenAI-compatible endpoint. Make sure the provider key is set in the server environment.
-          </p>
-          <Input
-            label="Base URL"
-            value={customUrl}
-            placeholder="https://api.openai.com/v1"
-            onChange={(e) => setCustomUrl(e.target.value)}
-          />
-          <Input
-            label="Model name"
-            value={customModel}
-            placeholder="gpt-4o, claude-sonnet-4-20250514, ..."
-            onChange={(e) => setCustomModel(e.target.value)}
-          />
-          <Input
-            label="Label (optional)"
-            value={customLabel}
-            placeholder="e.g. Fastest model"
-            onChange={(e) => setCustomLabel(e.target.value)}
-          />
-          <Button variant="primary" onClick={() => void handleAddCustom()} loading={adding} disabled={!customUrl.trim() || !customModel.trim()}>
+    <Modal
+      title="Add a model"
+      onClose={onClose}
+      size="md"
+      footer={
+        <>
+          <Button className="flex-1" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button className="flex-1" variant="primary" disabled={!ready} onClick={handleAdd}>
             <Plus className="h-3.5 w-3.5" /> Add to catalog
           </Button>
-        </div>
-      )}
+        </>
+      }
+    >
+      <ModelPicker
+        bundle={bundle}
+        value={choice}
+        onChange={(next) => {
+          setChoice(next);
+          setProbe(null);
+        }}
+        label="Model"
+        hint="Pick a suggested model, or choose “Other model…” to enter any model id your provider offers."
+        showNoteInput
+      />
 
-      {error && (
-        <div className="mt-3">
-          <Alert onDismiss={() => setError(null)}>{error}</Alert>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3 border-t border-adm-line pt-4">
+        <Button size="sm" loading={probing} disabled={!ready} onClick={() => void runProbe()}>
+          <Zap className="h-3.5 w-3.5" /> Test connection
+        </Button>
+        {probe ? (
+          <ProbeSummary result={probe} />
+        ) : (
+          <span className="text-xs text-adm-mute">Optional — confirms the endpoint answers before you add it.</span>
+        )}
+      </div>
+
+      {error && <Alert onDismiss={() => setError(null)}>{error}</Alert>}
     </Modal>
   );
 }

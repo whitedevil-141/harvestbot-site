@@ -55,14 +55,16 @@ export type Json = Record<string, unknown>;
 
 // --- config ----------------------------------------------------------------
 
-export type PricingEntry = { input?: number | null; output?: number | null } & Json;
+/** USD per 1M tokens. `in`/`out` are the server's field names, not input/output. */
+export type PricingEntry = { in?: number | null; out?: number | null } & Json;
 
 export type ModelCatalogEntry = {
   /** "{base_url}|{model}" -- the round-trip identifier for pickers. */
   key: string;
   model: string;
   base_url: string;
-  label?: string | null;
+  /** Free-text operator note ("free tier", "best quality"). */
+  note?: string | null;
   provider?: string | null;
   pricing?: PricingEntry | null;
   key_configured?: boolean;
@@ -70,14 +72,28 @@ export type ModelCatalogEntry = {
 
 export type ModelCatalogGroup = { provider: string; entries: ModelCatalogEntry[] };
 
+/** One provider's suggested models. Grouped server-side, hence `models[]`. */
 export type ModelPreset = {
-  model: string;
+  provider: string;
   base_url: string;
-  label?: string | null;
-  provider?: string | null;
+  models: string[];
 } & Json;
 
-export type ProviderKey = { provider: string; env: string; configured: boolean };
+/** Where a configured key came from. "stored" is the only one the UI can change. */
+export type ProviderKeySource = "stored" | "env" | "slot";
+
+export type ProviderKey = {
+  provider: string;
+  /** The environment variable this provider's key would come from. */
+  env: string;
+  configured: boolean;
+  /** Host suffix the key is matched against, e.g. "groq.com". */
+  host: string;
+  source?: ProviderKeySource | null;
+};
+
+/** The write side of a provider key. The key itself is never returned. */
+export type ProviderKeyWriteResult = { provider: string; configured: boolean };
 
 export type AdminConfigBundle = {
   version: number;
@@ -132,6 +148,65 @@ export const parseModelKey = (key: string): { base_url: string; model: string } 
 
 /** The catalog rejects anything that is not http(s); check before the PUT. */
 export const isHttpUrl = (value: string) => /^https?:\/\/\S+$/i.test(value.trim());
+
+/**
+ * The two providers the server will accept an endpoint on. Mirrors
+ * ALLOWED_LLM_HOSTS in app/core/config.py: the server is the authority and
+ * rejects anything else with a 422, this copy only exists so the UI can say so
+ * before spending a round trip on it.
+ */
+export const ALLOWED_LLM_HOSTS = ["groq.com", "openrouter.ai"] as const;
+
+/** Matched by host suffix, so a regional subdomain still counts. */
+export const isAllowedLlmHost = (value: string): boolean => {
+  if (!isHttpUrl(value)) return false;
+  try {
+    const host = new URL(value.trim()).hostname.toLowerCase();
+    return ALLOWED_LLM_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The catalog arrives grouped by provider, but every picker wants one flat list
+ * with `key` and `provider` guaranteed present. Group order is preserved.
+ */
+export const flattenCatalog = (bundle: AdminConfigBundle | null | undefined): ModelCatalogEntry[] =>
+  (bundle?.model_catalog ?? []).flatMap((group) =>
+    group.entries.map((entry) => ({
+      ...entry,
+      key: entry.key ?? modelKey(entry.base_url, entry.model),
+      provider: entry.provider ?? group.provider,
+    })),
+  );
+
+/** One flat, catalog-shaped list from the server's provider-grouped presets. */
+export const flattenPresets = (
+  bundle: AdminConfigBundle | null | undefined,
+): { provider: string; base_url: string; model: string; key: string }[] =>
+  (bundle?.model_presets ?? []).flatMap((preset) =>
+    (preset.models ?? []).map((model) => ({
+      provider: preset.provider,
+      base_url: preset.base_url,
+      model,
+      key: modelKey(preset.base_url, model),
+    })),
+  );
+
+/**
+ * Config field names are server-driven, so the model override cannot hard-code
+ * them. This locates the pair by shape: the model field is a `*model*` key that
+ * is not the catalog, the endpoint field is a `*base_url*`/`*api_base*` key.
+ * A null `modelField` means the running config exposes no override -- callers
+ * must hide the picker rather than guess.
+ */
+export const findModelFields = (
+  editableFields: readonly string[],
+): { modelField: string | null; baseUrlField: string | null } => ({
+  modelField: editableFields.find((field) => /model/i.test(field) && !/catalog|preset/i.test(field)) ?? null,
+  baseUrlField: editableFields.find((field) => /base_?url|api_base/i.test(field)) ?? null,
+});
 
 export const MODEL_CATALOG_LIMIT = 200;
 
@@ -325,6 +400,142 @@ export const playground = {
     adminFetch<null>(withQuery("/playground/reset", { session_id: sessionId }), { method: "POST" }),
 };
 
+/**
+ * Split an error into per-field messages and a banner.
+ *
+ * FastAPI returns a 422 as `detail: [{loc, msg}]`, which ApiError renders as
+ * the useless "HTTP 422" -- the messages that name the offending field are one
+ * level down. Anything that is not a validation error comes back as a banner.
+ */
+export function fieldErrorsFrom(error: unknown): {
+  fields: Record<string, string>;
+  banner: string | null;
+} {
+  if (!(error instanceof ApiError)) {
+    return { fields: {}, banner: error instanceof Error ? error.message : "Save failed." };
+  }
+  const detail = (error.body as { detail?: unknown } | null)?.detail;
+  if (Array.isArray(detail)) {
+    const fields: Record<string, string> = {};
+    for (const entry of detail) {
+      const item = entry as { loc?: unknown[]; msg?: string };
+      const key = Array.isArray(item.loc) ? String(item.loc[item.loc.length - 1]) : "";
+      if (key && item.msg) fields[key] = item.msg;
+    }
+    return { fields, banner: Object.keys(fields).length ? null : error.message };
+  }
+  return { fields: {}, banner: error.message };
+}
+
+// --- functions -------------------------------------------------------------
+
+/** Every method a webhook function may use, in the server's order. */
+export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
+/** Methods that carry a JSON body; the others send their arguments as query. */
+export const METHODS_WITH_BODY: readonly HttpMethod[] = ["POST", "PUT", "PATCH"];
+
+/**
+ * One operator-defined function, exactly as the server stores it.
+ *
+ * `body: null` is not the same as `{}` -- null means "send whatever arguments
+ * no other template consumed", which is what makes the common case a URL and
+ * nothing else.
+ */
+export type WebhookSpec = {
+  name: string;
+  description: string;
+  parameters: Json;
+  method: HttpMethod;
+  url: string;
+  headers: Record<string, string>;
+  query: Record<string, string>;
+  body: Json | null;
+  timeout_seconds: number;
+};
+
+export type FunctionSource = "builtin" | "custom";
+
+/**
+ * A row of the functions list. Built-ins carry only the first four fields --
+ * they are Python classes, so there is no URL to show and nothing to edit.
+ * `error` is set on a stored function that no longer validates: it is not
+ * registered, so the model cannot call it, but it still exists and still owns
+ * its name.
+ */
+export type AdminFunction = Partial<WebhookSpec> & {
+  name: string;
+  description?: string;
+  parameters?: Json;
+  source: FunctionSource;
+  enabled: boolean;
+  error?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type FunctionList = {
+  items: AdminFunction[];
+  /** null means "every function", including ones created later. */
+  enabled_tools: string[] | null;
+  builtin_names: string[];
+};
+
+export type WebhookCallResult = {
+  ok: boolean;
+  status?: number;
+  data?: unknown;
+  error?: string;
+};
+
+export type FunctionTestResult = {
+  tool: string;
+  arguments: Json;
+  result: WebhookCallResult;
+};
+
+export const BUILTIN_FUNCTION_HINT =
+  "Built-in: defined in the server's code. It can be switched off here, but not edited.";
+
+/** A blank webhook spec, matching the server's field defaults. */
+export const emptyWebhookSpec = (): WebhookSpec => ({
+  name: "",
+  description: "",
+  parameters: { type: "object", properties: {}, required: [] },
+  method: "GET",
+  url: "",
+  headers: {},
+  query: {},
+  body: null,
+  timeout_seconds: 10,
+});
+
+export const functions = {
+  list: () => getJson<FunctionList>("/functions"),
+
+  create: (spec: WebhookSpec) => postJson<AdminFunction>("/functions", spec),
+
+  /** The name is immutable server-side; a mismatch is a 400, not a rename. */
+  update: (name: string, spec: WebhookSpec) =>
+    adminFetch<AdminFunction>(`/functions/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(spec),
+    }),
+
+  remove: (name: string) =>
+    adminFetch<null>(`/functions/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  /**
+   * Calls the endpoint once with sample arguments. Takes the whole spec, so an
+   * unsaved draft can be tried before it is committed -- a failed call comes
+   * back as a 200 with `result.ok === false`, the same shape the model sees.
+   */
+  test: (spec: WebhookSpec, args: Json) =>
+    postJson<FunctionTestResult>("/functions/test", { spec, arguments: args }),
+};
+
 // --- system ----------------------------------------------------------------
 
 export type SystemStatus = {
@@ -369,6 +580,25 @@ export const system = {
   /** Probes an arbitrary candidate before it is saved to the catalog. */
   llmProbe: (candidate: { base_url: string; model: string }) =>
     postJson<ProbeResult>("/system/llm-probe", candidate),
+
+  // --- provider keys -------------------------------------------------------
+  //
+  // Write-only by design: GET /config reports whether a key is configured and
+  // where it came from, but never the key itself, so the UI can only set or
+  // clear one. A saved key rebuilds the live provider server-side and takes
+  // effect on the next turn -- re-fetch the config bundle after either call to
+  // pick up the new `configured` flag.
+  //
+  // Only a "stored" key can be cleared. A key that came from the environment
+  // has no delete: overwriting it here stores one that wins instead.
+
+  /** Stores (or replaces) the key for one provider. 400 on an unknown provider. */
+  setProviderKey: (provider: string, apiKey: string) =>
+    postJson<ProviderKeyWriteResult>("/system/provider-keys", { provider, api_key: apiKey }),
+
+  /** Clears the stored key. Models from that provider fail until one is set again. */
+  deleteProviderKey: (provider: string) =>
+    adminFetch<null>(`/system/provider-keys/${encodeURIComponent(provider)}`, { method: "DELETE" }),
 };
 
 /**
