@@ -360,7 +360,7 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
       
       {/* Navigation - Floating Island */}
       <div className="fixed top-4 md:top-6 left-0 right-0 z-50 flex justify-center px-4 md:px-6 pointer-events-none transition-all">
-        <nav className={`pointer-events-auto w-full max-w-4xl bg-[#0a0a0a]/80 backdrop-blur-2xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between shadow-[0_20px_40px_-10px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-300 p-1.5 md:p-2 ${isMobileMenuOpen ? 'rounded-3xl' : 'rounded-full'}`}>
+        <nav className={`pointer-events-auto w-full max-w-4xl bg-[#0a0a0a]/80 backdrop-blur-2xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between shadow-[0_20px_40px_-10px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-300 p-1.5 md:p-3 ${isMobileMenuOpen ? 'rounded-3xl' : 'rounded-full'}`}>
           <div className="flex items-center justify-between w-full md:w-auto">
             <div className="flex items-center gap-2 font-bold text-base md:text-xl tracking-tight text-white group cursor-pointer pl-2 md:pl-3">
               <Image
@@ -370,7 +370,7 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
                 height={32}
                 className="w-7 h-7 md:w-8 md:h-8 rounded-full object-cover"
               />
-              <span>Harvest Bot</span>
+              <span></span>
             </div>
             
             {/* Mobile Hamburger Toggle */}
