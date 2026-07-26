@@ -20,8 +20,10 @@ import {
   Panel,
   Row,
   Rows,
+  Select,
   Spinner,
   Textarea,
+  Toggle,
   formatNumber,
   formatTimestamp,
   useToast,
@@ -41,6 +43,7 @@ export function Knowledge() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const sources = useAdminResource(() => kb.sources(), []);
+  const storedSources = useAdminResource(() => kb.storedSources(), []);
   const stored = useAdminResource(() => kb.stored({ limit: PAGE_SIZE, offset: storedOffset }), [storedOffset]);
   const chunks = useAdminResource(
     () => kb.documents({ source: sourceFilter || undefined, limit: PAGE_SIZE, offset: chunkOffset }),
@@ -49,6 +52,7 @@ export function Knowledge() {
 
   const refreshAll = () => {
     sources.refresh();
+    storedSources.refresh();
     stored.refresh();
     chunks.refresh();
   };
@@ -93,7 +97,7 @@ export function Knowledge() {
       {actionError && <Alert onDismiss={() => setActionError(null)}>{actionError}</Alert>}
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-        <IngestPanel busy={busy} onRun={run} />
+        <IngestPanel busy={busy} onRun={run} storedSources={storedSources.data ?? []} />
         <SearchPanel />
       </div>
 
@@ -330,14 +334,29 @@ export function Knowledge() {
 function IngestPanel({
   busy,
   onRun,
+  storedSources,
 }: {
   busy: string | null;
   onRun: (label: string, action: () => Promise<string | void>) => Promise<void>;
+  storedSources: string[];
 }) {
   const [source, setSource] = useState("");
   const [text, setText] = useState("");
+  const [append, setAppend] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const setAppendMode = (next: boolean) => {
+    setAppend(next);
+    setSource("");
+  };
+
+  const sourceOptions = [
+    { value: "", label: "Select an existing source…", disabled: true },
+    ...storedSources.map((s) => ({ value: s, label: s })),
+  ];
+
+  const canIngest = text.trim() && source.trim();
 
   const uploadFile = (file: File) => {
     setFileError(null);
@@ -356,12 +375,22 @@ function IngestPanel({
   return (
     <Panel title="Ingest" description="Paste text or upload a file. Both are chunked and embedded.">
       <div className="space-y-3">
-        <Input
-          label="Source name"
-          value={source}
-          placeholder="handbook.md — reused as the identifier for updates"
-          onChange={(event) => setSource(event.target.value)}
-        />
+        {append ? (
+          <Select
+            label="Source"
+            value={source}
+            options={sourceOptions}
+            onChange={(event) => setSource(event.target.value)}
+          />
+        ) : (
+          <Input
+            label="Source name"
+            value={source}
+            placeholder="handbook.md — reused as the identifier for updates"
+            onChange={(event) => setSource(event.target.value)}
+          />
+        )}
+
         <Textarea
           label="Text"
           rows={5}
@@ -371,15 +400,23 @@ function IngestPanel({
           onChange={(event) => setText(event.target.value)}
         />
 
+        <Toggle
+          label="Append to existing"
+          hint={append ? "Text will be added to the end of the selected source." : "A new source will be created or replaced."}
+          checked={append}
+          onChange={setAppendMode}
+        />
+
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="primary"
             loading={busy === "ingest"}
-            disabled={!text.trim() || !source.trim()}
+            disabled={!canIngest}
             onClick={() =>
               void onRun("ingest", async () => {
-                const result = await kb.ingest({ text: text.trim(), source: source.trim() });
+                const result = await kb.ingest({ text: text.trim(), source: source.trim(), append });
                 setText("");
+                setSource("");
                 return `Indexed ${result.chunks_indexed} chunks into ${result.source}.`;
               })
             }

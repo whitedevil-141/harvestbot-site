@@ -348,7 +348,8 @@ export const kb = {
     }
     return res.text();
   },
-  ingest: (payload: { text: string; source: string; metadata?: Json }) =>
+  storedSources: () => getJson<string[]>("/kb/stored/sources"),
+  ingest: (payload: { text: string; source: string; metadata?: Json; append?: boolean }) =>
     postJson<KbIngestResult>("/kb/ingest", payload),
   upload: (file: File, source?: string) => {
     // No Content-Type header: the browser has to set the multipart boundary.
