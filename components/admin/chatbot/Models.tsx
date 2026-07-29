@@ -397,7 +397,7 @@ export function Models() {
             <Panel
               title={
                 <span className="flex items-center gap-2">
-                  <KeyRound className="h-3.5 w-3.5 text-adm-mute" /> API keys
+                  <KeyRound className="h-3.5 w-3.5 text-adm-mute" /> Provider keys
                 </span>
               }
               description={

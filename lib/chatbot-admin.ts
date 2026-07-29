@@ -602,6 +602,40 @@ export const system = {
     adminFetch<null>(`/system/provider-keys/${encodeURIComponent(provider)}`, { method: "DELETE" }),
 };
 
+// --- api keys --------------------------------------------------------------
+//
+// Inbound caller credentials -- the X-API-Key a client sends to reach the chat
+// endpoints. Not the provider keys above: those are the outbound keys this
+// server uses to reach an LLM, and the two are easy to confuse by name alone.
+
+export type ApiKey = {
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  /** null until first use. Written lazily, so it trails real use by up to a minute. */
+  last_used_at: string | null;
+};
+
+export type ApiKeyList = {
+  items: ApiKey[];
+  /** Keys supplied through the API_KEYS env var: counted only, never listed or revocable. */
+  env_keys: number;
+};
+
+/** create() is the only place the full secret is ever returned. */
+export type ApiKeyCreated = ApiKey & { api_key: string };
+
+export const apiKeys = {
+  list: () => getJson<ApiKeyList>("/api-keys"),
+
+  /** 201 with the full secret. It is not stored in a readable form, so this is the one chance to keep it. */
+  create: (name: string) => postJson<ApiKeyCreated>("/api-keys", { name }),
+
+  /** Immediate: a caller still sending the revoked key starts getting 401s on the next request. */
+  revoke: (name: string) =>
+    adminFetch<null>(`/api-keys/${encodeURIComponent(name)}`, { method: "DELETE" }),
+};
+
 /**
  * A failed probe reports latency_ms: 0 when the provider key is missing. That
  * is a sentinel, not a measurement, so it must not render as "0 ms".

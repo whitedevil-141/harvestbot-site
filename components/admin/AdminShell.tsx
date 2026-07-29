@@ -10,6 +10,7 @@ import {
   CreditCard,
   Cpu,
   FlaskConical,
+  KeyRound,
   LayoutDashboard,
   Menu,
   MessagesSquare,
@@ -48,6 +49,7 @@ export const NAV: NavGroup[] = [
       { href: "/admin/chatbot/functions", label: "Functions", icon: Wrench },
       { href: "/admin/chatbot/knowledge", label: "Knowledge", icon: BookOpen },
       { href: "/admin/chatbot/system", label: "System", icon: Server },
+      { href: "/admin/chatbot/api-keys", label: "API keys", icon: KeyRound },
     ],
   },
 ];
