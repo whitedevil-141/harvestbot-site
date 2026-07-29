@@ -270,8 +270,10 @@ function NewKeyModal({ onCreated, onClose }: { onCreated: () => void; onClose: (
 // ── Chatbot endpoint overview ────────────────────────────────────────
 
 const CHATBOT_ENDPOINTS = [
-  { method: "POST", path: "/api/chatbot/admin/playground/chat", description: "Send a message and get the bot reply" },
+  { method: "POST", path: "/api/chatbot/admin/playground/chat", description: "Send a message (creates or continues a conversation)" },
+  { method: "GET", path: "/api/chatbot/admin/conversations", description: "List conversations" },
   { method: "GET", path: "/api/chatbot/admin/conversations/{id}", description: "Get a conversation transcript" },
+  { method: "POST", path: "/api/chatbot/admin/playground/reset", description: "Reset a conversation session" },
 ];
 
 function UsageGuide() {
