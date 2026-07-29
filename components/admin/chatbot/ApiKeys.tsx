@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useAdminResource } from "@/hooks/useAdminResource";
 import { apiKeys, fieldErrorsFrom, type ApiKey, type ApiKeyCreated } from "@/lib/chatbot-admin";
 import {
@@ -22,6 +22,7 @@ import {
   Td,
   Th,
   Tr,
+  copyText,
   formatTimestamp,
   useToast,
 } from "../ui";
@@ -270,14 +271,55 @@ function NewKeyModal({ onCreated, onClose }: { onCreated: () => void; onClose: (
 // ── Chatbot endpoint overview ────────────────────────────────────────
 
 const CHATBOT_ENDPOINTS = [
-  { method: "POST", path: "/api/chatbot/admin/playground/chat", description: "Send a message (creates or continues a conversation)" },
-  { method: "GET", path: "/api/chatbot/admin/conversations", description: "List conversations" },
-  { method: "GET", path: "/api/chatbot/admin/conversations/{id}", description: "Get a conversation transcript" },
-  { method: "POST", path: "/api/chatbot/admin/playground/reset", description: "Reset a conversation session" },
+  {
+    method: "POST",
+    path: "/api/chatbot/admin/playground/chat",
+    description: "Send a message and get a reply. Creates or continues a conversation.",
+    body: `{ "message": "string", "session_id": "string", "config_patch": "object (optional)", "reset_first": "boolean (optional)" }`,
+    response: `{ "reply": "string | null", "error": "string | null", "latency_ms": "number", "total_tokens": "number", "iterations": "number", "model": "string", "fallback_used": "boolean", "tool_calls": "array" }`,
+  },
+  {
+    method: "GET",
+    path: "/api/chatbot/admin/conversations",
+    description: "List chat conversations with cursor pagination.",
+    query: `{ "q": "string (optional)", "channel": "string (optional)", "has_error": "boolean (optional)", "cursor": "string (optional)", "limit": "number (optional)" }`,
+    response: `{ "items": "array", "next_cursor": "string | null" }`,
+  },
+  {
+    method: "GET",
+    path: "/api/chatbot/admin/conversations/{id}",
+    description: "Get the full transcript and runs for one conversation.",
+    response: `{ "id": "string", "transcript": "array", "runs": "array", "feedback": "array" }`,
+  },
+  {
+    method: "POST",
+    path: "/api/chatbot/admin/playground/reset",
+    description: "Reset a conversation session by session_id.",
+    query: `{ "session_id": "string" }`,
+    response: "null",
+  },
 ];
+
+const BASE_URL = "https://api.harvestbot.app";
+
+function endpointMarkdown(ep: (typeof CHATBOT_ENDPOINTS)[number]) {
+  return `### ${ep.method} ${BASE_URL}${ep.path}\n${ep.description}\n\n${ep.query ? `**Query:**\n\`\`\`json\n${ep.query}\n\`\`\`\n\n` : ""}${ep.body ? `**Body:**\n\`\`\`json\n${ep.body}\n\`\`\`\n\n` : ""}**Response:**\n\`\`\`json\n${ep.response}\n\`\`\``;
+}
+
+const ALL_ENDPOINTS_MARKDOWN = CHATBOT_ENDPOINTS.map(endpointMarkdown).join("\n\n---\n\n");
 
 function UsageGuide() {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  const toggle = (path: string) => setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
+
+  const copyAll = async () => {
+    await copyText(ALL_ENDPOINTS_MARKDOWN);
+    setCopiedAll(true);
+    window.setTimeout(() => setCopiedAll(false), 1800);
+  };
 
   return (
     <Panel
@@ -292,33 +334,63 @@ function UsageGuide() {
       }
       description="Endpoints for sending and receiving chatbot messages"
       padded={false}
+      actions={
+        open ? (
+          <Button size="sm" onClick={() => void copyAll()}>
+            {copiedAll ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copiedAll ? "Copied" : "Copy all for LLMs"}
+          </Button>
+        ) : undefined
+      }
     >
       {open && (
-        <div className="p-4 space-y-4 text-[13px] leading-relaxed text-adm-dim">
-          <p>
-            Send <code className="font-mono text-adm-text">X-API-Key</code> on every request.
-          </p>
+        <div className="divide-y divide-adm-line">
+          {CHATBOT_ENDPOINTS.map((ep) => {
+            const isExpanded = expanded[ep.path];
+            return (
+              <div key={ep.path} className="text-[13px]">
+                <button
+                  onClick={() => toggle(ep.path)}
+                  className="flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Badge tone={ep.method === "POST" ? "good" : "neutral"}>{ep.method}</Badge>
+                    <code className="font-mono text-xs text-adm-text truncate">{ep.path}</code>
+                    <span className="hidden sm:inline text-adm-mute truncate">{ep.description}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <CopyButton value={endpointMarkdown(ep)} label="Copy for LLMs" />
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-adm-mute" /> : <ChevronRight className="h-4 w-4 text-adm-mute" />}
+                  </div>
+                </button>
 
-          <Table minWidth="min-w-[44rem]" head={<><Th>Method</Th><Th>Path</Th><Th>Description</Th></>}>
-            {CHATBOT_ENDPOINTS.map((ep) => (
-              <Tr key={ep.path}>
-                <Td>
-                  <Badge tone={ep.method === "POST" ? "good" : "neutral"}>
-                    {ep.method}
-                  </Badge>
-                </Td>
-                <Td className="font-mono text-xs text-adm-text">{ep.path}</Td>
-                <Td className="text-adm-dim">{ep.description}</Td>
-              </Tr>
-            ))}
-          </Table>
+                {isExpanded && (
+                  <div className="px-5 pb-4 space-y-3 text-adm-dim">
+                    <p>{ep.description}</p>
 
-          <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed text-adm-dim">
-{`curl https://api.harvestbot.app/api/chatbot/admin/playground/chat \\
-  -H "X-API-Key: YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"message": "Hello", "session_id": "ticket-123"}'`}
-          </pre>
+                    {ep.query && (
+                      <div>
+                        <p className="text-xs font-medium text-adm-mute mb-1">Query parameters</p>
+                        <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed">{ep.query}</pre>
+                      </div>
+                    )}
+
+                    {ep.body && (
+                      <div>
+                        <p className="text-xs font-medium text-adm-mute mb-1">Request body</p>
+                        <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed">{ep.body}</pre>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-xs font-medium text-adm-mute mb-1">Response</p>
+                      <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed">{ep.response}</pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </Panel>
