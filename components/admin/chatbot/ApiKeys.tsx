@@ -310,10 +310,7 @@ const ALL_ENDPOINTS_MARKDOWN = CHATBOT_ENDPOINTS.map(endpointMarkdown).join("\n\
 
 function UsageGuide() {
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [copiedAll, setCopiedAll] = useState(false);
-
-  const toggle = (path: string) => setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
 
   const copyAll = async () => {
     await copyText(ALL_ENDPOINTS_MARKDOWN);
@@ -344,53 +341,49 @@ function UsageGuide() {
       }
     >
       {open && (
-        <div className="divide-y divide-adm-line">
-          {CHATBOT_ENDPOINTS.map((ep) => {
-            const isExpanded = expanded[ep.path];
-            return (
-              <div key={ep.path} className="text-[13px]">
-                <button
-                  onClick={() => toggle(ep.path)}
-                  className="flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Badge tone={ep.method === "POST" ? "good" : "neutral"}>{ep.method}</Badge>
-                    <code className="font-mono text-xs text-adm-text truncate">{ep.path}</code>
-                    <span className="hidden sm:inline text-adm-mute truncate">{ep.description}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <CopyButton value={endpointMarkdown(ep)} label="Copy for LLMs" />
-                    {isExpanded ? <ChevronDown className="h-4 w-4 text-adm-mute" /> : <ChevronRight className="h-4 w-4 text-adm-mute" />}
-                  </div>
-                </button>
+        <div className="space-y-4 p-5">
+          <p className="text-[13px] text-adm-dim">
+            Base URL: <code className="font-mono text-adm-text">{BASE_URL}</code>. Send{" "}
+            <code className="font-mono text-adm-text">X-API-Key</code> on every request.
+          </p>
 
-                {isExpanded && (
-                  <div className="px-5 pb-4 space-y-3 text-adm-dim">
-                    <p>{ep.description}</p>
+          {CHATBOT_ENDPOINTS.map((ep) => (
+            <section
+              key={ep.path}
+              className="rounded-xl border border-adm-line bg-adm-bg overflow-hidden"
+            >
+              <header className="flex items-center justify-between gap-4 border-b border-adm-line px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Badge tone={ep.method === "POST" ? "good" : "neutral"}>{ep.method}</Badge>
+                  <code className="font-mono text-xs text-adm-text truncate">{ep.path}</code>
+                </div>
+                <CopyButton value={endpointMarkdown(ep)} label="Copy for LLMs" />
+              </header>
 
-                    {ep.query && (
-                      <div>
-                        <p className="text-xs font-medium text-adm-mute mb-1">Query parameters</p>
-                        <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed">{ep.query}</pre>
-                      </div>
-                    )}
+              <div className="space-y-3 p-4 text-[13px] text-adm-dim">
+                <p>{ep.description}</p>
 
-                    {ep.body && (
-                      <div>
-                        <p className="text-xs font-medium text-adm-mute mb-1">Request body</p>
-                        <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed">{ep.body}</pre>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-xs font-medium text-adm-mute mb-1">Response</p>
-                      <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed">{ep.response}</pre>
-                    </div>
+                {ep.query && (
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-adm-mute">Query</p>
+                    <pre className="adm-scroll overflow-x-auto rounded-lg border border-adm-line bg-adm-surface p-3 text-[11px] leading-relaxed">{ep.query}</pre>
                   </div>
                 )}
+
+                {ep.body && (
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-adm-mute">Body</p>
+                    <pre className="adm-scroll overflow-x-auto rounded-lg border border-adm-line bg-adm-surface p-3 text-[11px] leading-relaxed">{ep.body}</pre>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-1 text-xs font-medium text-adm-mute">Response</p>
+                  <pre className="adm-scroll overflow-x-auto rounded-lg border border-adm-line bg-adm-surface p-3 text-[11px] leading-relaxed">{ep.response}</pre>
+                </div>
               </div>
-            );
-          })}
+            </section>
+          ))}
         </div>
       )}
     </Panel>
