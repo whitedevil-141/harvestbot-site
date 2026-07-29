@@ -267,7 +267,30 @@ function NewKeyModal({ onCreated, onClose }: { onCreated: () => void; onClose: (
   );
 }
 
-// ── Usage guide ─────────────────────────────────────────────────────────
+// ── Chatbot endpoint overview ────────────────────────────────────────
+
+const CHATBOT_ENDPOINTS = [
+  { method: "POST", path: "/api/chatbot/admin/playground/chat", description: "Send a chat message to the bot" },
+  { method: "POST", path: "/api/chatbot/admin/playground/reset", description: "Reset a chat session" },
+  { method: "GET", path: "/api/chatbot/admin/config", description: "Get current chatbot config" },
+  { method: "PUT", path: "/api/chatbot/admin/config", description: "Update chatbot config" },
+  { method: "POST", path: "/api/chatbot/admin/config/test", description: "Test a config change" },
+  { method: "POST", path: "/api/chatbot/admin/config/revert", description: "Revert to a previous config" },
+  { method: "GET", path: "/api/chatbot/admin/conversations", description: "List chat conversations" },
+  { method: "GET", path: "/api/chatbot/admin/conversations/{id}", description: "Get conversation details" },
+  { method: "POST", path: "/api/chatbot/admin/conversations/{id}/reset", description: "Reset a conversation" },
+  { method: "GET", path: "/api/chatbot/admin/kb/sources", description: "List knowledge base sources" },
+  { method: "POST", path: "/api/chatbot/admin/kb/search", description: "Search the knowledge base" },
+  { method: "POST", path: "/api/chatbot/admin/kb/ingest", description: "Add text to the knowledge base" },
+  { method: "POST", path: "/api/chatbot/admin/kb/upload", description: "Upload a file to the knowledge base" },
+  { method: "GET", path: "/api/chatbot/admin/functions", description: "List custom functions" },
+  { method: "POST", path: "/api/chatbot/admin/functions", description: "Create a custom function" },
+  { method: "PUT", path: "/api/chatbot/admin/functions/{name}", description: "Update a custom function" },
+  { method: "DELETE", path: "/api/chatbot/admin/functions/{name}", description: "Delete a custom function" },
+  { method: "GET", path: "/api/chatbot/admin/analytics/overview", description: "Chatbot analytics overview" },
+  { method: "GET", path: "/api/chatbot/admin/analytics/errors", description: "Chatbot error log" },
+  { method: "GET", path: "/api/chatbot/admin/system/status", description: "System status" },
+];
 
 function UsageGuide() {
   const [open, setOpen] = useState(false);
@@ -280,94 +303,31 @@ function UsageGuide() {
           className="flex items-center gap-2 text-sm font-semibold text-adm-text hover:text-adm-accent transition-colors"
         >
           {open ? <ChevronDown className="h-4 w-4 text-adm-mute" /> : <ChevronRight className="h-4 w-4 text-adm-mute" />}
-          Usage guide
+          Chatbot endpoint overview
         </button>
       }
-      description="How API keys work, how callers use them, and best practices."
+      description="Endpoints you can use to integrate the chatbot into your ticket system"
       padded={false}
     >
       {open && (
-        <div className="space-y-6 p-5 text-[13px] leading-relaxed text-adm-dim">
-          {/* 1. Overview */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-adm-text">What API keys are</h3>
-            <p>
-              API keys are <strong>inbound credentials</strong> that external services and scripts send to authenticate
-              against the chatbot chat endpoints. Each key is a unique secret that identifies a specific caller.
-            </p>
-            <p>
-              Keys listed here are stored in the database and can be created or revoked through this dashboard. The
-              server also accepts keys set through the <code className="font-mono text-adm-dim">API_KEYS</code> environment
-              variable &mdash; those are counted below but cannot be managed here.
-            </p>
-          </div>
-
-          {/* 2. Creating a key */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-adm-text">Creating a key</h3>
-            <ol className="list-decimal pl-5 space-y-1">
-              <li>Click <strong>New key</strong> in the top-right corner.</li>
-              <li>Give it a descriptive name (e.g. <code className="font-mono text-adm-dim">discord-bot</code> or <code className="font-mono text-adm-dim">analytics-pipeline</code>).</li>
-              <li>Click <strong>Create key</strong>.</li>
-              <li><strong>Copy the secret immediately.</strong> It is shown only once &mdash; after you close the dialog it can never be retrieved again. If lost, revoke the key and create a replacement.</li>
-            </ol>
-          </div>
-
-          {/* 3. Using the key */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-adm-text">Using the key</h3>
-            <p>
-              Callers send the key as the <code className="font-mono text-adm-dim">X-API-Key</code> HTTP header on every request to the chat endpoints:
-            </p>
-            <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed text-adm-dim">
-{`curl https://api.harvestbot.app/api/chatbot/chat \\
-  -H "X-API-Key: hb_abc123..." \\
-  -H "Content-Type: application/json" \\
-  -d '{"message": "Hello", "session_id": "abc"}'`}
-            </pre>
-            <p>Or in JavaScript:</p>
-            <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed text-adm-dim">
-{`fetch("https://api.harvestbot.app/api/chatbot/chat", {
-  method: "POST",
-  headers: {
-    "X-API-Key": "hb_abc123...",
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ message: "Hello", session_id: "abc" }),
-})`}</pre>
-          </div>
-
-          {/* 4. Best practices */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-adm-text">Best practices</h3>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>One key per caller.</strong> If you have a Discord bot, a webhook, and a CI script, give each its own key. You can revoke one without affecting the others.</li>
-              <li><strong>Use descriptive names.</strong> The name is how you identify a caller later. Include the environment (e.g. <code className="font-mono text-adm-dim">staging-slash-command</code> vs <code className="font-mono text-adm-dim">prod-slash-command</code>).</li>
-              <li><strong>Rotate keys periodically.</strong> Create a new key, update your caller, then revoke the old one.</li>
-              <li><strong>Store secrets safely.</strong> Use environment variables, secret managers, or vaults &mdash; never commit a key to version control.</li>
-              <li><strong>Monitor last-used timestamps.</strong> A key that has never been used, or has not been used in a long time, may be a candidate for revocation.</li>
-            </ul>
-          </div>
-
-          {/* 5. Revoking */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-adm-text">Revoking a key</h3>
-            <p>
-              Click the trash icon next to any key to revoke it. Revocation is <strong>immediate</strong>: any caller still
-              sending that key starts receiving 401 responses on their next request. This cannot be undone.
-            </p>
-          </div>
-
-          {/* 6. Environment keys */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-adm-text">Environment keys vs stored keys</h3>
-            <p>
-              Keys can come from two sources. Stored keys (shown in the table above) are managed through this dashboard
-              and persist in the database. Environment keys are defined by the server operator via the{" "}
-              <code className="font-mono text-adm-dim">API_KEYS</code> environment variable &mdash; they are counted in the
-              footer but never listed or revocable here. Both types are accepted by the chat endpoints.
-            </p>
-          </div>
+        <div className="p-4 text-[13px] leading-relaxed text-adm-dim">
+          <p className="mb-4">
+            Send <code className="font-mono text-adm-text">X-API-Key</code> on every request. The main endpoint for a ticket system is{" "}
+            <code className="font-mono text-adm-text">/api/chatbot/admin/playground/chat</code>.
+          </p>
+          <Table minWidth="min-w-[44rem]" head={<><Th>Method</Th><Th>Path</Th><Th>Description</Th></>}>
+            {CHATBOT_ENDPOINTS.map((ep) => (
+              <Tr key={ep.path}>
+                <Td>
+                  <Badge tone={ep.method === "GET" ? "neutral" : ep.method === "POST" ? "good" : "bad"}>
+                    {ep.method}
+                  </Badge>
+                </Td>
+                <Td className="font-mono text-xs text-adm-text">{ep.path}</Td>
+                <Td className="text-adm-dim">{ep.description}</Td>
+              </Tr>
+            ))}
+          </Table>
         </div>
       )}
     </Panel>
