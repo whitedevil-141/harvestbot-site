@@ -270,26 +270,8 @@ function NewKeyModal({ onCreated, onClose }: { onCreated: () => void; onClose: (
 // ── Chatbot endpoint overview ────────────────────────────────────────
 
 const CHATBOT_ENDPOINTS = [
-  { method: "POST", path: "/api/chatbot/admin/playground/chat", description: "Send a chat message to the bot" },
-  { method: "POST", path: "/api/chatbot/admin/playground/reset", description: "Reset a chat session" },
-  { method: "GET", path: "/api/chatbot/admin/config", description: "Get current chatbot config" },
-  { method: "PUT", path: "/api/chatbot/admin/config", description: "Update chatbot config" },
-  { method: "POST", path: "/api/chatbot/admin/config/test", description: "Test a config change" },
-  { method: "POST", path: "/api/chatbot/admin/config/revert", description: "Revert to a previous config" },
-  { method: "GET", path: "/api/chatbot/admin/conversations", description: "List chat conversations" },
-  { method: "GET", path: "/api/chatbot/admin/conversations/{id}", description: "Get conversation details" },
-  { method: "POST", path: "/api/chatbot/admin/conversations/{id}/reset", description: "Reset a conversation" },
-  { method: "GET", path: "/api/chatbot/admin/kb/sources", description: "List knowledge base sources" },
-  { method: "POST", path: "/api/chatbot/admin/kb/search", description: "Search the knowledge base" },
-  { method: "POST", path: "/api/chatbot/admin/kb/ingest", description: "Add text to the knowledge base" },
-  { method: "POST", path: "/api/chatbot/admin/kb/upload", description: "Upload a file to the knowledge base" },
-  { method: "GET", path: "/api/chatbot/admin/functions", description: "List custom functions" },
-  { method: "POST", path: "/api/chatbot/admin/functions", description: "Create a custom function" },
-  { method: "PUT", path: "/api/chatbot/admin/functions/{name}", description: "Update a custom function" },
-  { method: "DELETE", path: "/api/chatbot/admin/functions/{name}", description: "Delete a custom function" },
-  { method: "GET", path: "/api/chatbot/admin/analytics/overview", description: "Chatbot analytics overview" },
-  { method: "GET", path: "/api/chatbot/admin/analytics/errors", description: "Chatbot error log" },
-  { method: "GET", path: "/api/chatbot/admin/system/status", description: "System status" },
+  { method: "POST", path: "/api/chatbot/admin/playground/chat", description: "Send a message and get the bot reply" },
+  { method: "GET", path: "/api/chatbot/admin/conversations/{id}", description: "Get a conversation transcript" },
 ];
 
 function UsageGuide() {
@@ -306,20 +288,20 @@ function UsageGuide() {
           Chatbot endpoint overview
         </button>
       }
-      description="Endpoints you can use to integrate the chatbot into your ticket system"
+      description="Endpoints for sending and receiving chatbot messages"
       padded={false}
     >
       {open && (
-        <div className="p-4 text-[13px] leading-relaxed text-adm-dim">
-          <p className="mb-4">
-            Send <code className="font-mono text-adm-text">X-API-Key</code> on every request. The main endpoint for a ticket system is{" "}
-            <code className="font-mono text-adm-text">/api/chatbot/admin/playground/chat</code>.
+        <div className="p-4 space-y-4 text-[13px] leading-relaxed text-adm-dim">
+          <p>
+            Send <code className="font-mono text-adm-text">X-API-Key</code> on every request.
           </p>
+
           <Table minWidth="min-w-[44rem]" head={<><Th>Method</Th><Th>Path</Th><Th>Description</Th></>}>
             {CHATBOT_ENDPOINTS.map((ep) => (
               <Tr key={ep.path}>
                 <Td>
-                  <Badge tone={ep.method === "GET" ? "neutral" : ep.method === "POST" ? "good" : "bad"}>
+                  <Badge tone={ep.method === "POST" ? "good" : "neutral"}>
                     {ep.method}
                   </Badge>
                 </Td>
@@ -328,6 +310,13 @@ function UsageGuide() {
               </Tr>
             ))}
           </Table>
+
+          <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed text-adm-dim">
+{`curl https://api.harvestbot.app/api/chatbot/admin/playground/chat \\
+  -H "X-API-Key: YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"message": "Hello", "session_id": "ticket-123"}'`}
+          </pre>
         </div>
       )}
     </Panel>
