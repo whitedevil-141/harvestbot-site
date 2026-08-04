@@ -108,12 +108,19 @@ export const API_BASE = () => getEnv().apiBaseUrl;
 /** Base URL of the split-out chatbot backend. */
 export const CHATBOT_API_BASE = () => getEnv().chatbotApiBaseUrl;
 
-// Route by prefix: the chatbot lives on its own backend, everything else
-// (website, /api/admin/auth, health) stays on the payments API. Callers keep
-// passing canonical paths and never pick a host themselves.
+// The admin session is minted and verified on the chatbot backend — it is the
+// single source of truth for login — so /api/admin/auth/* is routed there
+// alongside the /api/chatbot/* admin resources it authorises. One origin, one
+// cookie, no cross-host mismatch. The website/payments API keeps everything
+// else (its own admin screens re-use the same cookie, which reaches both hosts
+// via the .harvestbot.app cookie domain once the gateway shares the secret).
+const onChatbotBackend = (path: string) =>
+  path.startsWith("/api/chatbot") || path.startsWith("/api/admin/auth");
+
+// Route by prefix: callers keep passing canonical paths and never pick a host.
 export const apiUrl = (path: string) => {
   const env = getEnv();
-  const base = path.startsWith("/api/chatbot") ? env.chatbotApiBaseUrl : env.apiBaseUrl;
+  const base = onChatbotBackend(path) ? env.chatbotApiBaseUrl : env.apiBaseUrl;
   return `${base}${path}`;
 };
 
