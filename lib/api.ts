@@ -12,6 +12,11 @@
 
 export type ApiEnvironment = {
   apiBaseUrl: string;
+  // The chatbot was split out to its own backend (chatbot.harvestbot.app); the
+  // payments/website API stays put. apiUrl() routes /api/chatbot/* here and
+  // everything else to apiBaseUrl. Same registrable domain (harvestbot.app), so
+  // the admin_session cookie -- scoped to .harvestbot.app -- reaches both.
+  chatbotApiBaseUrl: string;
   siteOrigin: string;
 };
 
@@ -35,10 +40,14 @@ const LOCAL_HOST_FALLBACK = "127.0.0.1";
 const ENVIRONMENTS = {
   local: {
     apiBaseUrl: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_API_PORT}`,
+    // Locally the chatbot is reached on the same host:port as the rest of the
+    // API (one dev backend, or an override below), so it tracks apiBaseUrl.
+    chatbotApiBaseUrl: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_API_PORT}`,
     siteOrigin: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_SITE_PORT}`,
   },
   production: {
     apiBaseUrl: "https://api.harvestbot.app",
+    chatbotApiBaseUrl: "https://chatbot.harvestbot.app",
     siteOrigin: "https://harvestbot.app",
   },
 } as const satisfies Record<string, ApiEnvironment>;
@@ -47,17 +56,30 @@ const ENVIRONMENTS = {
 // NEXT_PUBLIC_* is inlined when CI builds it -- an env-only switch would mean
 // the deployed bundle could never be pointed at a local backend.
 export const getEnv = (): ApiEnvironment => {
+  const trimSlash = (s: string) => s.replace(/\/+$/, "");
   const override = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  // A dedicated chatbot override, so the split backend can be pointed
+  // independently of the website API. Falls back to the website override when
+  // only that is set (a single unified backend for local testing).
+  const chatbotOverride = process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL?.trim();
   if (override) {
-    return { apiBaseUrl: override.replace(/\/+$/, ""), siteOrigin: ENVIRONMENTS.production.siteOrigin };
+    return {
+      apiBaseUrl: trimSlash(override),
+      chatbotApiBaseUrl: trimSlash(chatbotOverride || override),
+      siteOrigin: ENVIRONMENTS.production.siteOrigin,
+    };
   }
+  // A chatbot override on its own repoints only the chatbot; the website API
+  // keeps its hostname-derived value below.
+  const withChatbotOverride = (env: ApiEnvironment): ApiEnvironment =>
+    chatbotOverride ? { ...env, chatbotApiBaseUrl: trimSlash(chatbotOverride) } : env;
   if (typeof window === "undefined") {
-    return MODE === "local" ? ENVIRONMENTS.local : ENVIRONMENTS.production;
+    return withChatbotOverride(MODE === "local" ? ENVIRONMENTS.local : ENVIRONMENTS.production);
   }
   const host = window.location.hostname;
   const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
   if (MODE === "production" || (MODE === "auto" && !isLoopback)) {
-    return ENVIRONMENTS.production;
+    return withChatbotOverride(ENVIRONMENTS.production);
   }
 
   // Local: keep the API on the *same hostname the page was loaded from*.
@@ -73,15 +95,27 @@ export const getEnv = (): ApiEnvironment => {
   // In production the problem does not arise: harvestbot.app and
   // api.harvestbot.app share a registrable domain.
   const localHost = isLoopback ? host : LOCAL_HOST_FALLBACK;
+  const localBase = `http://${localHost}:${LOCAL_API_PORT}`;
   return {
-    apiBaseUrl: `http://${localHost}:${LOCAL_API_PORT}`,
+    apiBaseUrl: localBase,
+    chatbotApiBaseUrl: chatbotOverride ? trimSlash(chatbotOverride) : localBase,
     siteOrigin: `http://${localHost}:${LOCAL_SITE_PORT}`,
   };
 };
 
 export const API_BASE = () => getEnv().apiBaseUrl;
 
-export const apiUrl = (path: string) => `${getEnv().apiBaseUrl}${path}`;
+/** Base URL of the split-out chatbot backend. */
+export const CHATBOT_API_BASE = () => getEnv().chatbotApiBaseUrl;
+
+// Route by prefix: the chatbot lives on its own backend, everything else
+// (website, /api/admin/auth, health) stays on the payments API. Callers keep
+// passing canonical paths and never pick a host themselves.
+export const apiUrl = (path: string) => {
+  const env = getEnv();
+  const base = path.startsWith("/api/chatbot") ? env.chatbotApiBaseUrl : env.apiBaseUrl;
+  return `${base}${path}`;
+};
 
 export const ENDPOINTS = {
   // --- website: stats -----------------------------------------------------
