@@ -26,7 +26,7 @@ export type ApiEnvironment = {
 type Mode = "auto" | "local" | "production";
 // `as Mode` keeps the type widened: a plain annotated const narrows to its
 // literal, which makes the branches below look like dead comparisons to tsc.
-const MODE = "local" as Mode;
+const MODE = "auto" as Mode;
 
 /** Dev port of the backend. The host is not pinned -- see LOCAL_HOST_FALLBACK. */
 const LOCAL_API_PORT = 8000;
