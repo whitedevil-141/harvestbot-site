@@ -3,25 +3,22 @@
 import React from "react";
 import { AdminAuthProvider, AdminLoginCard, useAdminSession } from "@/components/admin/AdminAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { Spinner, ToastProvider } from "@/components/admin/ui";
+import { ToastProvider } from "@/components/admin/ui";
 
 /**
  * The whole admin tree sits behind one session.
  *
- * The shell and every screen stay unmounted until the session is confirmed, so
- * nothing fetches behind the login card, and any 401 from any admin endpoint
- * drops the tree straight back to it (see hooks/useAdminAuth.ts).
+ * The shell mounts optimistically while the session is still being checked, so
+ * the boot-time `auth.me()` overlaps with each screen's own data fetch instead
+ * of blocking in front of it -- the redirect landing page and the payments
+ * fetch no longer wait for auth to resolve first. Only a *confirmed* logged-out
+ * state (auth.me() reporting `authenticated: false`, or any admin endpoint 401ing
+ * -- see hooks/useAdminAuth.ts) drops the tree to the login card. Each screen
+ * shows its own loading state until its data arrives, so the brief pre-auth
+ * window renders spinners rather than stale numbers.
  */
 function Gate({ children }: { children: React.ReactNode }) {
   const { status } = useAdminSession();
-
-  if (status === "loading") {
-    return (
-      <div className="adm-root flex h-dvh items-center justify-center gap-2 bg-adm-bg text-[13px] text-adm-mute">
-        <Spinner /> Checking session…
-      </div>
-    );
-  }
 
   if (status === "out") {
     return (
@@ -31,6 +28,7 @@ function Gate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // "loading" and "in" both render the shell.
   return <AdminShell>{children}</AdminShell>;
 }
 

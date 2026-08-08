@@ -22,8 +22,11 @@ const ConfigContext = createContext<ConfigValue | null>(null);
  */
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
   const { status } = useAdminSession();
+  // Fetch as soon as the provider mounts -- in parallel with the boot-time
+  // auth.me() -- and only stand down once the session is known to be gone, so
+  // consumers see a real loading state (not an empty bundle) during the check.
   const { data, loading, error, refresh } = useAdminResource(() => config.get(), [], {
-    enabled: status === "in",
+    enabled: status !== "out",
   });
 
   return (
