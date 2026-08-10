@@ -302,7 +302,7 @@ const CHATBOT_ENDPOINTS = [
 
 // The chatbot runs on its own backend now; these customer-facing endpoint docs
 // point at it rather than the payments API. See lib/api.ts apiUrl() routing.
-const BASE_URL = "https://chatbot.harvestbot.app";
+const BASE_URL = "https://harvestbot-chatbot-production.up.railway.app";
 
 function endpointMarkdown(ep: (typeof CHATBOT_ENDPOINTS)[number]) {
   return `### ${ep.method} ${BASE_URL}${ep.path}\n${ep.description}\n\n${ep.query ? `**Query:**\n\`\`\`json\n${ep.query}\n\`\`\`\n\n` : ""}${ep.body ? `**Body:**\n\`\`\`json\n${ep.body}\n\`\`\`\n\n` : ""}**Response:**\n\`\`\`json\n${ep.response}\n\`\`\``;

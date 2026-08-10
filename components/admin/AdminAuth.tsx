@@ -71,7 +71,7 @@ export function AdminLoginCard() {
           </form>
 
           <p className="mt-4 text-xs leading-relaxed text-adm-mute">
-            One password for both surfaces. The session is an HttpOnly cookie held by the browser, never by this page.
+            One password for both surfaces. Your session is a bearer token kept in this browser and sent with each request.
           </p>
         </div>
       </div>

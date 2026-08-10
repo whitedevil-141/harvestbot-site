@@ -10,7 +10,7 @@
 // callers may poll freely.
 
 import { ApiError, ENDPOINTS, apiUrl } from "@/lib/api";
-import { broadcastUnauthenticated, sessionFetch } from "@/lib/admin-auth";
+import { authHeader, broadcastUnauthenticated, sessionFetch } from "@/lib/admin-auth";
 
 const base = (path: string) => apiUrl(`${ENDPOINTS.chatbotAdmin}${path}`);
 
@@ -338,9 +338,9 @@ export const kb = {
   /** text/plain, not JSON. The path param may contain slashes. */
   storedRaw: async (source: string) => {
     // Not sessionFetch: this endpoint answers text/plain and the raw body is
-    // the point, so the response is read directly.
+    // the point, so the response is read directly. Still carries the token.
     const res = await fetch(base(`/kb/stored/${source.split("/").map(encodeURIComponent).join("/")}`), {
-      credentials: "include",
+      headers: authHeader(),
     });
     if (!res.ok) {
       if (res.status === 401) broadcastUnauthenticated();

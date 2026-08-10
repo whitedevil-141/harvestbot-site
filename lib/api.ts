@@ -12,10 +12,11 @@
 
 export type ApiEnvironment = {
   apiBaseUrl: string;
-  // The chatbot was split out to its own backend (chatbot.harvestbot.app); the
-  // payments/website API stays put. apiUrl() routes /api/chatbot/* here and
-  // everything else to apiBaseUrl. Same registrable domain (harvestbot.app), so
-  // the admin_session cookie -- scoped to .harvestbot.app -- reaches both.
+  // The chatbot backend now runs on Railway -- a different registrable domain,
+  // so the old shared-cookie trick is off the table. apiUrl() routes only
+  // /api/chatbot/* here; auth and everything else stay on apiBaseUrl. Cross-host
+  // admin requests are authorised by a bearer token both backends accept, not a
+  // cookie (see lib/admin-auth.ts).
   chatbotApiBaseUrl: string;
   siteOrigin: string;
 };
@@ -47,7 +48,7 @@ const ENVIRONMENTS = {
   },
   production: {
     apiBaseUrl: "https://api.harvestbot.app",
-    chatbotApiBaseUrl: "https://chatbot.harvestbot.app",
+    chatbotApiBaseUrl: "https://harvestbot-chatbot-production.up.railway.app",
     siteOrigin: "https://harvestbot.app",
   },
 } as const satisfies Record<string, ApiEnvironment>;
@@ -108,14 +109,13 @@ export const API_BASE = () => getEnv().apiBaseUrl;
 /** Base URL of the split-out chatbot backend. */
 export const CHATBOT_API_BASE = () => getEnv().chatbotApiBaseUrl;
 
-// The admin session is minted and verified on the chatbot backend — it is the
-// single source of truth for login — so /api/admin/auth/* is routed there
-// alongside the /api/chatbot/* admin resources it authorises. One origin, one
-// cookie, no cross-host mismatch. The website/payments API keeps everything
-// else (its own admin screens re-use the same cookie, which reaches both hosts
-// via the .harvestbot.app cookie domain once the gateway shares the secret).
-const onChatbotBackend = (path: string) =>
-  path.startsWith("/api/chatbot") || path.startsWith("/api/admin/auth");
+// Auth no longer rides on a shared cookie. Login (/api/admin/auth/*) is served
+// by the website backend on harvestbot.app and mints a bearer token; that token
+// is attached to every admin request (lib/admin-auth.ts) and accepted by both
+// the website backend and the Railway chatbot backend, so it works across
+// domains. Only /api/chatbot/* is routed to the Railway host; auth and
+// everything else fall through to apiBaseUrl.
+const onChatbotBackend = (path: string) => path.startsWith("/api/chatbot");
 
 // Route by prefix: callers keep passing canonical paths and never pick a host.
 export const apiUrl = (path: string) => {
