@@ -16,7 +16,6 @@ import { ENDPOINTS, apiUrl, discordCallbackUrl, discordLoginUrl } from '@/lib/ap
 import {
   BINANCE_PAY_ID,
   LTC_ADDRESS,
-  LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
 } from '@/lib/payment/constants';
@@ -216,7 +215,7 @@ function CheckoutPage() {
     if (typeof window === "undefined") return "USDT";
     const params = new URLSearchParams(window.location.search);
     const paymentParam = params.get("payment");
-    if (paymentParam === "LTC" && LTC_PAYMENT_ENABLED) return "LTC";
+    if (paymentParam === "LTC") return "LTC";
     if (paymentParam === "USDT") return "USDT";
     return "USDT";
   });
@@ -788,24 +787,17 @@ function CheckoutPage() {
                       >
                         USDT (TRX)
                       </button>
-                      {!LTC_PAYMENT_ENABLED && (
-                        <p className="basis-full text-xs font-semibold text-amber-300">
-                          LTC temporary disabled
-                        </p>
-                      )}
-                      {LTC_PAYMENT_ENABLED && (
-                        <button
-                          type="button"
-                          onClick={() => setCoin("LTC")}
-                          className={`rounded-full border px-4 py-1.5 text-[11px] font-bold transition-all ${
-                            coin === "LTC"
-                              ? "border-[#23f8ff]/50 bg-[#23f8ff]/5 text-[#23f8ff]"
-                              : "border-white/10 bg-neutral-950 text-neutral-500 hover:text-neutral-300"
-                          }`}
-                        >
-                          LTC
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setCoin("LTC")}
+                        className={`rounded-full border px-4 py-1.5 text-[11px] font-bold transition-all ${
+                          coin === "LTC"
+                            ? "border-[#23f8ff]/50 bg-[#23f8ff]/5 text-[#23f8ff]"
+                            : "border-white/10 bg-neutral-950 text-neutral-500 hover:text-neutral-300"
+                        }`}
+                      >
+                        LTC
+                      </button>
                     </div>
 
                     {coin === "USDT" && (

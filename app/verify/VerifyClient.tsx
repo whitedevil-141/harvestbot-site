@@ -17,7 +17,6 @@ import { ENDPOINTS, apiUrl, discordCallbackUrl, discordLoginUrl } from "@/lib/ap
 import {
   BINANCE_PAY_ID,
   LTC_ADDRESS,
-  LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
 } from "@/lib/payment/constants";
@@ -815,24 +814,17 @@ export default function VerifyClient() {
                         >
                           USDT (TRX)
                         </button>
-                        {!LTC_PAYMENT_ENABLED && (
-                          <p className="basis-full text-xs font-semibold text-amber-300">
-                            LTC temporary disabled
-                          </p>
-                        )}
-                        {LTC_PAYMENT_ENABLED && (
-                          <button
-                            type="button"
-                            onClick={() => setCoin("LTC")}
-                            className={`rounded-full border px-4 py-1.5 text-xs font-semibold transition-all ${
-                              coin === "LTC"
-                                ? "border-[#23f8ff] bg-slate-900 text-[#23f8ff]"
-                                : "border-slate-800 bg-slate-950 text-slate-400"
-                            }`}
-                          >
-                            LTC (LTC)
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setCoin("LTC")}
+                          className={`rounded-full border px-4 py-1.5 text-xs font-semibold transition-all ${
+                            coin === "LTC"
+                              ? "border-[#23f8ff] bg-slate-900 text-[#23f8ff]"
+                              : "border-slate-800 bg-slate-950 text-slate-400"
+                          }`}
+                        >
+                          LTC (LTC)
+                        </button>
                       </div>
 
                       {coin === "USDT" && (
