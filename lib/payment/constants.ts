@@ -16,6 +16,7 @@ export type PlanOption = {
 export const BINANCE_PAY_ID = "770585563";
 export const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
 export const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
+export const LTC_PAYMENT_ENABLED = false;
 
 // The two copies had diverged: /payment accepted "biweekly" as a plan alias and
 // /verify did not, so the same deep link selected a plan on one page and not the
