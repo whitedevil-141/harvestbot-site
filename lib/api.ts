@@ -132,7 +132,6 @@ export const ENDPOINTS = {
   // --- website: payments --------------------------------------------------
   paymentsUsdtToLtc: "/api/website/payments/USDTtoLTC",
   paymentsVerify: "/api/website/payments/verify",
-  checkoutStatus: "/api/website/payments/status",
 
   // --- website: discord OAuth + fulfilment ---------------------------------
   discordLogin: "/api/website/auth/discord/login",

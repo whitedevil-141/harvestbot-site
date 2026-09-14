@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { 
-  AlertTriangle,
+import {
   ArrowLeft,
   ShieldCheck,
   BadgeCheck,
@@ -12,7 +11,6 @@ import {
   Copy,
   Home,
   MessageCircle,
-  RefreshCw,
   Sparkles,
   UserRound,
   Wallet,
@@ -21,6 +19,8 @@ import {
 import { ENDPOINTS, apiUrl, discordCallbackUrl, discordLoginUrl } from '@/lib/api';
 import {
   BINANCE_PAY_ID,
+  CHECKOUT_ENABLED,
+  CHECKOUT_MAINTENANCE_MESSAGE,
   LTC_ADDRESS,
   LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
@@ -1145,29 +1145,7 @@ function CheckoutContent() {
   );
 }
 
-type CheckoutStatus = {
-  enabled: boolean;
-  maintenance_message: string;
-};
-
-type CheckoutGateState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; checkout: CheckoutStatus };
-
-function CheckoutStatusScreen({
-  mode,
-  message,
-  onRetry,
-}: {
-  mode: "loading" | "maintenance" | "error";
-  message?: string;
-  onRetry?: () => void;
-}) {
-  const loading = mode === "loading";
-  const maintenance = mode === "maintenance";
-  const Icon = loading ? RefreshCw : maintenance ? Wrench : AlertTriangle;
-
+function CheckoutMaintenanceScreen() {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#080a0a] px-5 py-12 text-neutral-100 selection:bg-[#23f8ff]/25">
       <div className="pointer-events-none absolute inset-0">
@@ -1177,7 +1155,7 @@ function CheckoutStatusScreen({
       </div>
 
       <section
-        role={loading ? "status" : "alert"}
+        role="alert"
         aria-live="polite"
         className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/8 bg-[#0d1010]/90 shadow-[0_30px_100px_rgba(0,0,0,0.65)] backdrop-blur-xl"
       >
@@ -1196,58 +1174,39 @@ function CheckoutStatusScreen({
           <div className="mt-12 sm:mt-16">
             <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-[#23f8ff]/20 bg-[#23f8ff]/6 text-[#23f8ff] shadow-[0_0_40px_rgba(35,248,255,0.09)]">
               <span className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-full border-2 border-[#0d1010] bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.7)]" />
-              <Icon className={`h-8 w-8 ${loading ? "animate-spin" : ""}`} strokeWidth={1.7} />
+              <Wrench className="h-8 w-8" strokeWidth={1.7} />
             </div>
 
             <p className="mt-8 text-[11px] font-bold uppercase tracking-[0.24em] text-[#23f8ff]">
-              {loading ? "Running systems check" : maintenance ? "Scheduled service pause" : "Status unavailable"}
+              Scheduled service pause
             </p>
             <h1 className="mt-3 max-w-xl text-3xl font-bold tracking-[-0.035em] text-white sm:text-5xl">
-              {loading
-                ? "Checking checkout availability"
-                : maintenance
-                  ? "Checkout is under maintenance"
-                  : "Checkout is temporarily unavailable"}
+              Checkout is under maintenance
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-7 text-neutral-400 sm:text-base">
-              {loading
-                ? "One moment while we confirm the payment gateway is ready."
-                : maintenance
-                  ? message
-                  : "We could not confirm that the payment gateway is ready. No payment details have been loaded. Please try again shortly."}
+              {CHECKOUT_MAINTENANCE_MESSAGE}
             </p>
 
-            {!loading && (
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                {mode === "error" && onRetry && (
-                  <button
-                    type="button"
-                    onClick={onRetry}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#23f8ff] px-5 text-sm font-bold text-[#071011] transition hover:bg-[#9bfbff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23f8ff]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1010]"
-                  >
-                    <RefreshCw className="h-4 w-4" /> Try again
-                  </button>
-                )}
-                <Link
-                  href="/"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/4 px-5 text-sm font-bold text-neutral-200 transition hover:border-white/20 hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23f8ff]/50"
-                >
-                  <Home className="h-4 w-4" /> Back to home
-                </Link>
-                <a
-                  href="https://discord.com/invite/ymj4rEHpEV"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-5 text-sm font-bold text-neutral-400 transition hover:border-[#23f8ff]/25 hover:text-[#23f8ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23f8ff]/50"
-                >
-                  <MessageCircle className="h-4 w-4" /> Discord support
-                </a>
-              </div>
-            )}
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/4 px-5 text-sm font-bold text-neutral-200 transition hover:border-white/20 hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23f8ff]/50"
+              >
+                <Home className="h-4 w-4" /> Back to home
+              </Link>
+              <a
+                href="https://discord.com/invite/ymj4rEHpEV"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-5 text-sm font-bold text-neutral-400 transition hover:border-[#23f8ff]/25 hover:text-[#23f8ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23f8ff]/50"
+              >
+                <MessageCircle className="h-4 w-4" /> Discord support
+              </a>
+            </div>
           </div>
 
           <div className="mt-12 flex items-center gap-3 border-t border-white/6 pt-5 text-[11px] uppercase tracking-[0.18em] text-neutral-600 sm:mt-16">
-            <span className={`h-1.5 w-1.5 rounded-full ${loading ? "animate-pulse bg-[#23f8ff]" : "bg-amber-300"}`} />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
             Payment details remain protected
           </div>
         </div>
@@ -1257,52 +1216,7 @@ function CheckoutStatusScreen({
 }
 
 function CheckoutPage() {
-  const [gate, setGate] = useState<CheckoutGateState>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(apiUrl(ENDPOINTS.checkoutStatus), {
-      cache: "no-store",
-      signal: controller.signal,
-      headers: { Accept: "application/json" },
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Checkout status returned ${response.status}`);
-        const data = (await response.json()) as Partial<CheckoutStatus>;
-        if (typeof data.enabled !== "boolean" || typeof data.maintenance_message !== "string") {
-          throw new Error("Checkout status response is invalid");
-        }
-        return {
-          enabled: data.enabled,
-          maintenance_message: data.maintenance_message,
-        };
-      })
-      .then((checkout) => setGate({ status: "ready", checkout }))
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setGate({ status: "error" });
-      });
-
-    return () => controller.abort();
-  }, [attempt]);
-
-  if (gate.status === "loading") return <CheckoutStatusScreen mode="loading" />;
-  if (gate.status === "error") {
-    return (
-      <CheckoutStatusScreen
-        mode="error"
-        onRetry={() => {
-          setGate({ status: "loading" });
-          setAttempt((value) => value + 1);
-        }}
-      />
-    );
-  }
-  if (!gate.checkout.enabled) {
-    return <CheckoutStatusScreen mode="maintenance" message={gate.checkout.maintenance_message} />;
-  }
+  if (!CHECKOUT_ENABLED) return <CheckoutMaintenanceScreen />;
   return <CheckoutContent />;
 }
 
