@@ -150,7 +150,6 @@ export const ENDPOINTS = {
 
   // --- website: operator surface (admin_session cookie) --------------------
   verifiedPayments: "/api/website/admin/verified_payments",
-  checkoutSettings: "/api/website/admin/checkout_settings",
 
   // --- chatbot: admin console (admin_session cookie) -----------------------
   // Base of the tree only. The per-resource paths hang off it in

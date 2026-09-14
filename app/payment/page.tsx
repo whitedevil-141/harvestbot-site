@@ -1148,7 +1148,6 @@ function CheckoutContent() {
 type CheckoutStatus = {
   enabled: boolean;
   maintenance_message: string;
-  updated_at: string | null;
 };
 
 type CheckoutGateState =
@@ -1278,7 +1277,6 @@ function CheckoutPage() {
         return {
           enabled: data.enabled,
           maintenance_message: data.maintenance_message,
-          updated_at: typeof data.updated_at === "string" ? data.updated_at : null,
         };
       })
       .then((checkout) => setGate({ status: "ready", checkout }))

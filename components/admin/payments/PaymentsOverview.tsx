@@ -16,7 +16,6 @@ import {
 } from "../ui";
 import { PLAN_IDS, type ChartPeriod, type PlanId, usePayments } from "./PaymentsProvider";
 import { PaymentsChart } from "./PaymentsChart";
-import { CheckoutAvailability } from "./CheckoutAvailability";
 import { TransactionsTable } from "./TransactionsTable";
 
 const PERIODS: ChartPeriod[] = ["week", "1m", "1yr", "lifetime"];
@@ -66,8 +65,6 @@ export function PaymentsOverview() {
       />
 
       {error && <Alert onRetry={fetchPayments}>{error}</Alert>}
-
-      <CheckoutAvailability />
 
       <StatGrid>
         <StatTile
