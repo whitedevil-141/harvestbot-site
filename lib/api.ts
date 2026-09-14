@@ -132,6 +132,7 @@ export const ENDPOINTS = {
   // --- website: payments --------------------------------------------------
   paymentsUsdtToLtc: "/api/website/payments/USDTtoLTC",
   paymentsVerify: "/api/website/payments/verify",
+  checkoutStatus: "/api/website/payments/status",
 
   // --- website: discord OAuth + fulfilment ---------------------------------
   discordLogin: "/api/website/auth/discord/login",
@@ -149,6 +150,7 @@ export const ENDPOINTS = {
 
   // --- website: operator surface (admin_session cookie) --------------------
   verifiedPayments: "/api/website/admin/verified_payments",
+  checkoutSettings: "/api/website/admin/checkout_settings",
 
   // --- chatbot: admin console (admin_session cookie) -----------------------
   // Base of the tree only. The per-resource paths hang off it in
