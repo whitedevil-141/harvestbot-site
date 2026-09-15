@@ -16,9 +16,9 @@ export type PlanOption = {
 export const BINANCE_PAY_ID = "770585563";
 export const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
 export const LTC_ADDRESS = "LQyQgGRCNWnUzRtdAXDdTpyJVhEqrtz9TC";
-export const LTC_PAYMENT_ENABLED = false;
+export const LTC_PAYMENT_ENABLED = true;
 // Flip to false and redeploy the static site to show the maintenance screen.
-export const CHECKOUT_ENABLED = false;
+export const CHECKOUT_ENABLED = true;
 export const CHECKOUT_MAINTENANCE_MESSAGE =
   "Checkout is temporarily unavailable while we perform maintenance. Please check back soon.";
 
