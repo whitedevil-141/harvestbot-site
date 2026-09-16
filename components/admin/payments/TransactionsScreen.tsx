@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api";
 import { sessionFetch } from "@/lib/admin-auth";
@@ -21,14 +21,60 @@ import { TransactionsTable } from "./TransactionsTable";
 
 const PAGE_SIZES = ["10", "20", "50", "100"];
 
-const emptyDraft = () => ({
+const TRANSACTION_METHODS = [
+  {
+    id: "binance_pay",
+    label: "Binance Pay",
+    coin: "USDT",
+    network: "BINANCE_PAY",
+    referenceLabel: "Binance Pay order ID",
+    referencePlaceholder: "Enter the Binance Pay order ID",
+    referenceHint: "Use the order ID shown in your Binance Pay history.",
+  },
+  {
+    id: "gift_card",
+    label: "Binance Gift Card",
+    coin: "GIFT",
+    network: "BINANCE_GIFT_CARD",
+    referenceLabel: "Gift card redeem code",
+    referencePlaceholder: "Enter the gift card redeem code",
+    referenceHint: "Use the redeem code from the Binance gift card.",
+  },
+  {
+    id: "usdt_tron",
+    label: "USDT (TRON)",
+    coin: "USDT",
+    network: "TRON",
+    referenceLabel: "Transaction hash",
+    referencePlaceholder: "Paste the TRON transaction hash",
+    referenceHint: "Use the transaction hash for the USDT transfer on TRON.",
+  },
+  {
+    id: "ltc_litecoin",
+    label: "LTC (Litecoin)",
+    coin: "LTC",
+    network: "LITECOIN",
+    referenceLabel: "Transaction hash",
+    referencePlaceholder: "Paste the Litecoin transaction hash",
+    referenceHint: "Use the transaction hash for the LTC transfer.",
+  },
+] as const;
+
+type TransactionMethodId = (typeof TRANSACTION_METHODS)[number]["id"];
+
+type Draft = {
+  transaction_type: TransactionMethodId;
+  transaction_id: string;
+  amount: string;
+  key: string;
+};
+
+const emptyDraft = (): Draft => ({
+  transaction_type: "binance_pay",
   transaction_id: "",
-  network: "",
   amount: "",
   key: "",
 });
-
-type Draft = ReturnType<typeof emptyDraft>;
 
 export function TransactionsScreen() {
   const {
@@ -192,21 +238,46 @@ function AddTransactionModal({ onClose, onAdded }: { onClose: () => void; onAdde
   const [errors, setErrors] = useState<Partial<Record<keyof Draft, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const submissionLock = useRef(false);
 
-  const set = (field: keyof Draft) => (event: React.ChangeEvent<HTMLInputElement>) =>
-    setDraft((prev) => ({ ...prev, [field]: event.target.value }));
+  const selectedMethod =
+    TRANSACTION_METHODS.find((method) => method.id === draft.transaction_type) ?? TRANSACTION_METHODS[0];
+
+  const clearError = (field: keyof Draft) => {
+    setErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const set = (field: Exclude<keyof Draft, "transaction_type">) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setDraft((prev) => ({ ...prev, [field]: event.target.value }));
+      clearError(field);
+    };
+
+  const setTransactionType = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setDraft((prev) => ({ ...prev, transaction_type: event.target.value as TransactionMethodId }));
+    clearError("transaction_type");
+  };
 
   const submit = async () => {
+    if (submissionLock.current) return;
+
     const amount = Number(draft.amount);
+    const method = TRANSACTION_METHODS.find((option) => option.id === draft.transaction_type);
     const next: Partial<Record<keyof Draft, string>> = {};
+    if (!method) next.transaction_type = "Required.";
     if (!draft.transaction_id.trim()) next.transaction_id = "Required.";
-    if (!draft.network.trim()) next.network = "Required.";
     if (!draft.amount.trim()) next.amount = "Required.";
     else if (!Number.isFinite(amount) || amount <= 0) next.amount = "Must be a positive number.";
 
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
+    if (Object.keys(next).length > 0 || !method) return;
 
+    submissionLock.current = true;
     setSubmitting(true);
     setBanner(null);
     try {
@@ -216,8 +287,8 @@ function AddTransactionModal({ onClose, onAdded }: { onClose: () => void; onAdde
         body: JSON.stringify({
           transaction_id: draft.transaction_id.trim(),
           amount,
-          coin: "USDT",
-          network: draft.network.trim(),
+          coin: method.coin,
+          network: method.network,
           key: draft.key.trim() || null,
         }),
       });
@@ -226,6 +297,7 @@ function AddTransactionModal({ onClose, onAdded }: { onClose: () => void; onAdde
     } catch (err) {
       setBanner(err instanceof Error ? err.message : "Failed to add the transaction.");
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
@@ -247,20 +319,27 @@ function AddTransactionModal({ onClose, onAdded }: { onClose: () => void; onAdde
     >
       {banner && <Alert>{banner}</Alert>}
 
+      <Select
+        label="Transaction type"
+        value={draft.transaction_type}
+        error={errors.transaction_type}
+        required
+        options={TRANSACTION_METHODS.map((method) => ({ value: method.id, label: method.label }))}
+        onChange={setTransactionType}
+      />
       <Input
-        label="Transaction id"
+        label={selectedMethod.referenceLabel}
         value={draft.transaction_id}
         error={errors.transaction_id}
-        placeholder="0x… or the provider's reference"
+        placeholder={selectedMethod.referencePlaceholder}
+        hint={selectedMethod.referenceHint}
         onChange={set("transaction_id")}
       />
-      <Input label="Coin" value="USDT" disabled hint="Manual entries are recorded in USDT." readOnly />
       <Input
-        label="Network"
-        value={draft.network}
-        error={errors.network}
-        placeholder="Ethereum, Polygon, TRON…"
-        onChange={set("network")}
+        label="Asset / network"
+        value={`${selectedMethod.coin} · ${selectedMethod.network.replaceAll("_", " ")}`}
+        hint="Set automatically from the selected transaction type."
+        readOnly
       />
       <Input
         label="Amount (USD)"
