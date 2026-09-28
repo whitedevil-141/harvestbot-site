@@ -5,18 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
-  BookOpen,
   CreditCard,
-  Cpu,
-  FlaskConical,
-  KeyRound,
   LayoutDashboard,
   Menu,
-  MessagesSquare,
-  Server,
-  SlidersHorizontal,
-  Wrench,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -36,20 +27,6 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/admin/payments", label: "Overview", icon: LayoutDashboard },
       { href: "/admin/payments/transactions", label: "Transactions", icon: CreditCard },
-    ],
-  },
-  {
-    label: "Chatbot",
-    items: [
-      { href: "/admin/chatbot", label: "Overview", icon: Activity },
-      { href: "/admin/chatbot/playground", label: "Playground", icon: FlaskConical },
-      { href: "/admin/chatbot/conversations", label: "Conversations", icon: MessagesSquare },
-      { href: "/admin/chatbot/tuning", label: "Tuning", icon: SlidersHorizontal },
-      { href: "/admin/chatbot/models", label: "Models", icon: Cpu },
-      { href: "/admin/chatbot/functions", label: "Functions", icon: Wrench },
-      { href: "/admin/chatbot/knowledge", label: "Knowledge", icon: BookOpen },
-      { href: "/admin/chatbot/system", label: "System", icon: Server },
-      { href: "/admin/chatbot/api-keys", label: "API keys", icon: KeyRound },
     ],
   },
 ];

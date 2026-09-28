@@ -150,7 +150,7 @@ export function Mono({ children, className = "" }: { children: React.ReactNode; 
   return <span className={`font-mono text-xs text-adm-dim ${className}`}>{children}</span>;
 }
 
-/** Named JsonBlock, not Json: `Json` is the config payload type in lib/chatbot-admin. */
+/** Compact, readable presentation for structured API data. */
 export function JsonBlock({ value }: { value: unknown }) {
   return (
     <pre className="adm-scroll overflow-x-auto rounded-xl border border-adm-line bg-adm-bg p-3 text-[11px] leading-relaxed text-adm-dim">

@@ -1,7 +1,7 @@
 // Single source of truth for backend endpoints.
 //
-// The backend serves two canonical prefixes, /api/website/* and /api/chatbot/*.
-// It also still answers the retired /api/v1/* and /api/* paths as hidden
+// The backend serves the canonical /api/website/* prefix. It also still
+// answers the retired /api/v1/* and /api/* paths as hidden
 // aliases, but those exist to protect callers we do not control -- Discord's
 // registered OAuth redirect URI and the payment provider's webhook URL. Our own
 // frontend has no reason to be on that list, so everything here is canonical.
@@ -12,12 +12,6 @@
 
 export type ApiEnvironment = {
   apiBaseUrl: string;
-  // The chatbot backend now runs on Railway -- a different registrable domain,
-  // so the old shared-cookie trick is off the table. apiUrl() routes only
-  // /api/chatbot/* here; auth and everything else stay on apiBaseUrl. Cross-host
-  // admin requests are authorised by a bearer token both backends accept, not a
-  // cookie (see lib/admin-auth.ts).
-  chatbotApiBaseUrl: string;
   siteOrigin: string;
 };
 
@@ -41,14 +35,10 @@ const LOCAL_HOST_FALLBACK = "127.0.0.1";
 const ENVIRONMENTS = {
   local: {
     apiBaseUrl: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_API_PORT}`,
-    // Locally the chatbot is reached on the same host:port as the rest of the
-    // API (one dev backend, or an override below), so it tracks apiBaseUrl.
-    chatbotApiBaseUrl: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_API_PORT}`,
     siteOrigin: `http://${LOCAL_HOST_FALLBACK}:${LOCAL_SITE_PORT}`,
   },
   production: {
     apiBaseUrl: "https://api.harvestbot.app",
-    chatbotApiBaseUrl: "https://harvestbot-chatbot-production.up.railway.app",
     siteOrigin: "https://harvestbot.app",
   },
 } as const satisfies Record<string, ApiEnvironment>;
@@ -59,28 +49,19 @@ const ENVIRONMENTS = {
 export const getEnv = (): ApiEnvironment => {
   const trimSlash = (s: string) => s.replace(/\/+$/, "");
   const override = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
-  // A dedicated chatbot override, so the split backend can be pointed
-  // independently of the website API. Falls back to the website override when
-  // only that is set (a single unified backend for local testing).
-  const chatbotOverride = process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL?.trim();
   if (override) {
     return {
       apiBaseUrl: trimSlash(override),
-      chatbotApiBaseUrl: trimSlash(chatbotOverride || override),
       siteOrigin: ENVIRONMENTS.production.siteOrigin,
     };
   }
-  // A chatbot override on its own repoints only the chatbot; the website API
-  // keeps its hostname-derived value below.
-  const withChatbotOverride = (env: ApiEnvironment): ApiEnvironment =>
-    chatbotOverride ? { ...env, chatbotApiBaseUrl: trimSlash(chatbotOverride) } : env;
   if (typeof window === "undefined") {
-    return withChatbotOverride(MODE === "local" ? ENVIRONMENTS.local : ENVIRONMENTS.production);
+    return MODE === "local" ? ENVIRONMENTS.local : ENVIRONMENTS.production;
   }
   const host = window.location.hostname;
   const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
   if (MODE === "production" || (MODE === "auto" && !isLoopback)) {
-    return withChatbotOverride(ENVIRONMENTS.production);
+    return ENVIRONMENTS.production;
   }
 
   // Local: keep the API on the *same hostname the page was loaded from*.
@@ -99,30 +80,13 @@ export const getEnv = (): ApiEnvironment => {
   const localBase = `http://${localHost}:${LOCAL_API_PORT}`;
   return {
     apiBaseUrl: localBase,
-    chatbotApiBaseUrl: chatbotOverride ? trimSlash(chatbotOverride) : localBase,
     siteOrigin: `http://${localHost}:${LOCAL_SITE_PORT}`,
   };
 };
 
 export const API_BASE = () => getEnv().apiBaseUrl;
 
-/** Base URL of the split-out chatbot backend. */
-export const CHATBOT_API_BASE = () => getEnv().chatbotApiBaseUrl;
-
-// Auth no longer rides on a shared cookie. Login (/api/admin/auth/*) is served
-// by the website backend on harvestbot.app and mints a bearer token; that token
-// is attached to every admin request (lib/admin-auth.ts) and accepted by both
-// the website backend and the Railway chatbot backend, so it works across
-// domains. Only /api/chatbot/* is routed to the Railway host; auth and
-// everything else fall through to apiBaseUrl.
-const onChatbotBackend = (path: string) => path.startsWith("/api/chatbot");
-
-// Route by prefix: callers keep passing canonical paths and never pick a host.
-export const apiUrl = (path: string) => {
-  const env = getEnv();
-  const base = onChatbotBackend(path) ? env.chatbotApiBaseUrl : env.apiBaseUrl;
-  return `${base}${path}`;
-};
+export const apiUrl = (path: string) => `${getEnv().apiBaseUrl}${path}`;
 
 export const ENDPOINTS = {
   // --- website: stats -----------------------------------------------------
@@ -138,22 +102,12 @@ export const ENDPOINTS = {
   discordCallback: "/api/website/auth/discord/callback",
   paymentWebhook: "/api/website/payment/webhook",
 
-  // --- admin: one session for every operator surface -----------------------
-  // Canonical, and shared: the admin_session cookie minted here grants access
-  // to both the website admin routes and the chatbot admin tree. The old
-  // per-surface auth paths (/api/website/admin/auth/*, /api/v1/admin/auth/*)
-  // have been removed from the backend; /api/chatbot/admin/auth/* survives only
-  // as a legacy alias and is not targeted here. Paths hang off this base in
-  // lib/admin-auth.ts.
+  // --- admin authentication ------------------------------------------------
+  // Paths hang off this base in lib/admin-auth.ts.
   adminAuth: "/api/admin/auth",
 
   // --- website: operator surface (admin_session cookie) --------------------
   verifiedPayments: "/api/website/admin/verified_payments",
-
-  // --- chatbot: admin console (admin_session cookie) -----------------------
-  // Base of the tree only. The per-resource paths hang off it in
-  // lib/chatbot-admin.ts, which owns that whole client.
-  chatbotAdmin: "/api/chatbot/admin",
 
   // --- shared -------------------------------------------------------------
   health: "/api/health",

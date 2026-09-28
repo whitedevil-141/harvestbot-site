@@ -7,8 +7,7 @@ import { auth, onUnauthenticated } from "@/lib/admin-auth";
 export type AuthStatus = "loading" | "in" | "out";
 
 /**
- * The dashboard's session state. One cookie covers both the payments and
- * chatbot surfaces, so there is one of these for the whole app.
+ * The dashboard's shared payments-session state.
  *
  * Boots from GET /api/admin/auth/me, which always answers 200, so the initial
  * check never trips the 401 broadcast. After that any 401 from any admin

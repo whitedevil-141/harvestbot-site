@@ -1,28 +1,16 @@
-// The dashboard's single session.
+// The dashboard's payments session.
 //
-// One shared password mints a bearer token at /api/admin/auth/login, and that
-// one token authorises every operator surface -- /api/website/admin/* (verified
-// payments) and /api/chatbot/admin/* (config, analytics, knowledge base, ...)
-// alike. The two surfaces now live on different domains (payments on
-// harvestbot.app, chatbot on Railway), so a shared cookie can no longer span
-// them; the token is attached explicitly instead. Every admin request must
-// carry it; a single omission silently 401s.
-//
-// This module owns the session so the payments and chatbot clients share it
-// rather than each carrying their own notion of "signed in".
+// One password mints a bearer token at /api/admin/auth/login. This module owns
+// that session so every payments-admin request has the same notion of
+// "signed in" and carries the same token.
 
 import { ApiError, ENDPOINTS, apiUrl } from "@/lib/api";
 
 // --- session token ---------------------------------------------------------
 //
-// Auth used to be an HttpOnly cookie the browser attached for us. The chatbot
-// backend now lives on a different registrable domain (Railway), which a
-// .harvestbot.app cookie can never reach, so the session is a bearer token
-// instead: minted at login, kept here, and attached to every admin request to
-// both backends. It has to be readable from JS -- that is the cost of crossing
-// domains -- so keep the token TTL short on the backend. An in-memory copy is
-// the source of truth for the tab; localStorage mirrors it so a reload stays
-// signed in (matching the old cookie's persistence).
+// The session is a bearer token minted at login and attached to every admin
+// request. An in-memory copy is the source of truth for the tab; localStorage
+// mirrors it so a reload stays signed in.
 
 const TOKEN_KEY = "harvestbot:admin-token";
 

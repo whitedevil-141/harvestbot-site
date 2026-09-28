@@ -43,7 +43,7 @@ export function AdminLoginCard() {
             </div>
             <div>
               <h1 className="text-sm font-semibold text-adm-text">HarvestBot admin</h1>
-              <p className="text-xs text-adm-mute">Payments and chatbot console</p>
+              <p className="text-xs text-adm-mute">Payments console</p>
             </div>
           </div>
 
@@ -71,7 +71,7 @@ export function AdminLoginCard() {
           </form>
 
           <p className="mt-4 text-xs leading-relaxed text-adm-mute">
-            One password for both surfaces. Your session is a bearer token kept in this browser and sent with each request.
+            Your session is kept in this browser and sent securely with each admin request.
           </p>
         </div>
       </div>
