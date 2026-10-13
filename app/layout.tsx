@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { TruplexyChat } from "@truplexy/react";
 import "./globals.css";
 
+// Temporarily hide the chat widget; set to true to restore it.
+const showTruplexyChat = false;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -57,11 +60,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
-        <TruplexyChat
-          endpoint="/api/truplexy"
-          details="ask"
-          storageKey="harvestbot-site"
-        />
+        {showTruplexyChat && (
+          <TruplexyChat
+            endpoint="/api/truplexy"
+            details="ask"
+            storageKey="harvestbot-site"
+          />
+        )}
       </body>
     </html>
   );
