@@ -26,6 +26,13 @@ import {
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
 } from '@/lib/payment/constants';
+import {
+  type StoredLicenseKey,
+  clearLicenseKey,
+  formatLicenseKeyExpiry,
+  loadLicenseKey,
+  saveLicenseKey,
+} from '@/lib/payment/license-key-storage';
 
 // --- HELPERS ---
 
@@ -244,6 +251,8 @@ function CheckoutContent() {
     alreadyVerified?: boolean;
     isExistingUser?: boolean;
   }>({ status: "idle" });
+  const [storedKey, setStoredKey] = useState<StoredLicenseKey | null>(null);
+  const displayKey = verifyState.key ?? storedKey?.key;
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedPlan = PLAN_OPTIONS.find((p) => p.id === selectedPlanId) ?? PLAN_OPTIONS[0];
@@ -357,6 +366,20 @@ function CheckoutContent() {
     queueMicrotask(() => setVerifyState({ status: "idle" }));
   }, [method, coin, selectedPlanId]);
 
+  // Restore a recently issued license key (1h) after a page refresh.
+  useEffect(() => {
+    queueMicrotask(() => setStoredKey(loadLicenseKey()));
+  }, []);
+
+  useEffect(() => {
+    if (!storedKey) return;
+    const timer = setTimeout(() => {
+      clearLicenseKey();
+      setStoredKey(null);
+    }, Math.max(storedKey.expiresAt - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [storedKey]);
+
   // Live LTC quote when crypto + LTC.
   useEffect(() => {
     if (method !== "crypto" || coin !== "LTC") {
@@ -454,6 +477,8 @@ function CheckoutContent() {
     localStorage.removeItem("discord_id");
     localStorage.removeItem("discord_name");
     localStorage.removeItem("discord_avatar");
+    clearLicenseKey();
+    setStoredKey(null);
     setDiscordId(null);
     setDiscordName(null);
     setDiscordAvatar(null);
@@ -551,6 +576,9 @@ function CheckoutContent() {
             ? "Transaction already verified. Your access is active."
             : "Payment verified. Access is being delivered.";
 
+        const licenseKey = isExistingUser ? undefined : data?.key ? String(data.key) : undefined;
+        if (licenseKey) setStoredKey(saveLicenseKey(licenseKey));
+
         setVerifyState({
           status: "success",
           message: isExistingUser
@@ -558,7 +586,7 @@ function CheckoutContent() {
             : roleStatus
               ? `${baseMessage} ${roleStatus}.`
               : baseMessage,
-          key: isExistingUser ? undefined : data?.key ? String(data.key) : undefined,
+          key: licenseKey,
           alreadyVerified,
           isExistingUser,
         });
@@ -1080,17 +1108,20 @@ function CheckoutContent() {
                   </div>
                 )}
 
-                {verifyState.status === "success" &&
-                  !verifyState.isExistingUser &&
-                  verifyState.key && (
+                {!verifyState.isExistingUser && displayKey && (
                     <div className="rounded-lg border border-white/10 bg-[#050505] px-4 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-500">
                         License key
                       </p>
-                      <p className="mt-2 break-all font-mono text-xs sm:text-sm text-white">{verifyState.key}</p>
+                      <p className="mt-2 break-all font-mono text-xs sm:text-sm text-white">{displayKey}</p>
+                      {storedKey && (
+                        <p className="mt-1 text-[11px] text-neutral-500">
+                          Saved on this device until {formatLicenseKeyExpiry(storedKey.expiresAt)}.
+                        </p>
+                      )}
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(verifyState.key ?? "", "key")}
+                        onClick={() => copyToClipboard(displayKey, "key")}
                         className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1 text-[11px] font-semibold text-neutral-200 transition-colors"
                       >
                         <Copy className="h-3.5 w-3.5" />
@@ -1099,7 +1130,8 @@ function CheckoutContent() {
                     </div>
                   )}
 
-                {verifyState.status === "success" && !verifyState.isExistingUser && (
+                {!verifyState.isExistingUser &&
+                  (verifyState.status === "success" || Boolean(storedKey)) && (
                   <div className="rounded-lg border border-white/10 bg-[#050505] px-4 py-3 text-xs sm:text-sm text-neutral-300">
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-500">
                       Setup guide

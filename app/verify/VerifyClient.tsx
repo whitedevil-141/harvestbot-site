@@ -21,6 +21,13 @@ import {
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
 } from "@/lib/payment/constants";
+import {
+  type StoredLicenseKey,
+  clearLicenseKey,
+  formatLicenseKeyExpiry,
+  loadLicenseKey,
+  saveLicenseKey,
+} from "@/lib/payment/license-key-storage";
 
 type MethodId = "binance_pay" | "gift_card" | "crypto";
 
@@ -236,6 +243,8 @@ export default function VerifyClient() {
   const [ltcQuote, setLtcQuote] = useState<string | null>(null);
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "loading" | "error">("idle");
   const [verifyState, setVerifyState] = useState<VerifyState>({ status: "idle" });
+  const [storedKey, setStoredKey] = useState<StoredLicenseKey | null>(null);
+  const displayKey = verifyState.key ?? storedKey?.key;
 
   const selectedPlan =
     PLAN_OPTIONS.find((plan) => plan.id === selectedPlanId) ?? PLAN_OPTIONS[0];
@@ -356,6 +365,19 @@ export default function VerifyClient() {
   }, [method, coin, selectedPlanId]);
 
   useEffect(() => {
+    queueMicrotask(() => setStoredKey(loadLicenseKey()));
+  }, []);
+
+  useEffect(() => {
+    if (!storedKey) return;
+    const timer = setTimeout(() => {
+      clearLicenseKey();
+      setStoredKey(null);
+    }, Math.max(storedKey.expiresAt - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [storedKey]);
+
+  useEffect(() => {
     if (method !== "crypto" || coin !== "LTC") {
       queueMicrotask(() => {
         setLtcQuote(null);
@@ -441,6 +463,8 @@ export default function VerifyClient() {
     localStorage.removeItem("discord_id");
     localStorage.removeItem("discord_name");
     localStorage.removeItem("discord_avatar");
+    clearLicenseKey();
+    setStoredKey(null);
     setDiscordId(null);
     setDiscordName(null);
     setDiscordAvatar(null);
@@ -539,6 +563,9 @@ export default function VerifyClient() {
             ? "Transaction already verified. Your access is active."
             : "Payment verified. Access is being delivered.";
 
+        const licenseKey = isExistingUser ? undefined : data?.key ? String(data.key) : undefined;
+        if (licenseKey) setStoredKey(saveLicenseKey(licenseKey));
+
         setVerifyState({
           status: "success",
           message: isExistingUser
@@ -546,7 +573,7 @@ export default function VerifyClient() {
             : roleStatus
               ? `${baseMessage} ${roleStatus}.`
               : baseMessage,
-          key: isExistingUser ? undefined : data?.key ? String(data.key) : undefined,
+          key: licenseKey,
           alreadyVerified,
           isExistingUser,
         });
@@ -1105,17 +1132,20 @@ export default function VerifyClient() {
                     </div>
                   )}
 
-                  {verifyState.status === "success" &&
-                    !verifyState.isExistingUser &&
-                    verifyState.key && (
+                  {!verifyState.isExistingUser && displayKey && (
                     <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-2.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         License key
                       </p>
-                      <p className="mt-2 break-all font-mono text-sm">{verifyState.key}</p>
+                      <p className="mt-2 break-all font-mono text-sm">{displayKey}</p>
+                      {storedKey && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Saved on this device until {formatLicenseKeyExpiry(storedKey.expiresAt)}.
+                        </p>
+                      )}
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(verifyState.key ?? "", "key")}
+                        onClick={() => copyToClipboard(displayKey, "key")}
                         className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-[#23f8ff]/40"
                       >
                         <Copy className="h-3.5 w-3.5" />
@@ -1124,7 +1154,8 @@ export default function VerifyClient() {
                     </div>
                   )}
 
-                  {verifyState.status === "success" && !verifyState.isExistingUser && (
+                  {!verifyState.isExistingUser &&
+                    (verifyState.status === "success" || Boolean(storedKey)) && (
                     <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Setup guide
