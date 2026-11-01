@@ -111,7 +111,7 @@ export default function TermsOfService() {
 
           {/* 7. Subscription and Billing */}
           <Section id="subscription-billing" title="7. Subscription and Billing">
-            <p>Harvest Bot is offered on a paid license basis with the following plans: Weekly (7 days), Bi-Weekly (15 days), Monthly (30 days), and Lifetime. During limited-time promotions, such as the Hammer Jam offer, bonus days may be added to these periods (for example, Weekly becomes 10 days, Bi-Weekly 20 days, and Monthly 40 days). All payments are processed via cryptocurrency (USDT on TRX network, LTC) or Binance Pay.</p>
+            <p>Harvest Bot is offered on a paid license basis with the following plans: Weekly (7 days), Bi-Weekly (15 days), Monthly (30 days), and Lifetime. All payments are processed via cryptocurrency (USDT on TRX network, LTC) or Binance Pay.</p>
 
             <h3 className="text-white font-semibold mt-5 mb-2">Payment Terms</h3>
             <ul className="list-disc pl-5 space-y-1.5 text-neutral-400">

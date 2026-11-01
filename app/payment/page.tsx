@@ -25,7 +25,6 @@ import {
   LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
-  formatPlanDuration,
 } from '@/lib/payment/constants';
 import {
   type StoredLicenseKey,
@@ -705,7 +704,7 @@ function CheckoutContent() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-base sm:text-lg font-bold text-white">{plan.label}</p>
-                          <p className="text-xs sm:text-sm text-neutral-500">{formatPlanDuration(plan)} access</p>
+                          <p className="text-xs sm:text-sm text-neutral-500">{plan.days} days access</p>
                         </div>
                         <div className="text-right">
                           <p className={`text-xl sm:text-2xl font-bold ${isSelected ? "text-[#23f8ff]" : "text-white"}`}>

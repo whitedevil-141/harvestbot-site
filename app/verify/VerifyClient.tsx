@@ -20,7 +20,6 @@ import {
   LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
-  formatPlanDuration,
 } from "@/lib/payment/constants";
 import {
   type StoredLicenseKey,
@@ -717,7 +716,7 @@ export default function VerifyClient() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-lg font-semibold">{plan.label}</p>
-                            <p className="text-sm text-slate-400">{formatPlanDuration(plan)} access</p>
+                            <p className="text-sm text-slate-400">{plan.days} days access</p>
                           </div>
                           <div className="text-right">
                             <p className="text-2xl font-semibold">{formatUsd(plan.price)}</p>
