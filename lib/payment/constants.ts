@@ -8,10 +8,16 @@ export type PlanOption = {
   id: string;
   label: string;
   days: number;
+  /** Price actually charged (USDT): the sale price while SALE_ACTIVE. */
   price: number;
+  /** Regular price (USDT), shown struck through while the sale is on. */
+  originalPrice: number;
   tagline: string;
   aliases: string[];
 };
+
+// Limited-time sale. Flip SALE_ACTIVE to false to restore the regular prices.
+export const SALE_ACTIVE = true;
 
 export const BINANCE_PAY_ID = "770585563";
 export const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
@@ -25,12 +31,15 @@ export const CHECKOUT_MAINTENANCE_MESSAGE =
 // The two copies had diverged: /payment accepted "biweekly" as a plan alias and
 // /verify did not, so the same deep link selected a plan on one page and not the
 // other. This is the union, which only ever widens what each page accepts.
-export const PLAN_OPTIONS: PlanOption[] = [
+type PlanDef = Omit<PlanOption, "price"> & { salePrice: number };
+
+const PLAN_DEFS: PlanDef[] = [
   {
     id: "7d",
     label: "Weekly",
     days: 7,
-    price: 2,
+    originalPrice: 2,
+    salePrice: 1,
     tagline: "Quick boost for builder cycles",
     aliases: ["weekly", "7", "7 days", "7-day"],
   },
@@ -38,7 +47,8 @@ export const PLAN_OPTIONS: PlanOption[] = [
     id: "15d",
     label: "Bi-Weekly",
     days: 15,
-    price: 5,
+    originalPrice: 5,
+    salePrice: 3,
     tagline: "Solid grind window",
     aliases: ["bi-weekly", "15", "15 days", "15-day", "biweekly"],
   },
@@ -46,7 +56,8 @@ export const PLAN_OPTIONS: PlanOption[] = [
     id: "30d",
     label: "Monthly",
     days: 30,
-    price: 8,
+    originalPrice: 8,
+    salePrice: 6,
     tagline: "Best for long farms",
     aliases: ["monthly", "30", "30 days", "30-day"],
   },
@@ -54,8 +65,21 @@ export const PLAN_OPTIONS: PlanOption[] = [
     id: "lifetime",
     label: "Lifetime",
     days: 3650,
-    price: 35,
+    originalPrice: 35,
+    salePrice: 25,
     tagline: "One payment, always on",
     aliases: ["lifetime", "3650", "3650 days"],
   },
 ];
+
+export const PLAN_OPTIONS: PlanOption[] = PLAN_DEFS.map(({ salePrice, ...plan }) => ({
+  ...plan,
+  price: SALE_ACTIVE ? salePrice : plan.originalPrice,
+}));
+
+/** True when the plan is currently discounted. */
+export const isOnSale = (plan: PlanOption) => plan.price < plan.originalPrice;
+
+/** Percent off the regular price, to one decimal (e.g. 28.6). */
+export const discountPercent = (plan: PlanOption) =>
+  Math.round((1 - plan.price / plan.originalPrice) * 1000) / 10;

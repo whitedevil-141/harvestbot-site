@@ -25,6 +25,8 @@ import {
   LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
+  discountPercent,
+  isOnSale,
 } from '@/lib/payment/constants';
 import {
   type StoredLicenseKey,
@@ -708,8 +710,16 @@ function CheckoutContent() {
                         </div>
                         <div className="text-right">
                           <p className={`text-xl sm:text-2xl font-bold ${isSelected ? "text-[#23f8ff]" : "text-white"}`}>
+                            {isOnSale(plan) && (
+                              <span className="mr-1.5 text-xs sm:text-sm font-medium text-neutral-500 line-through">
+                                {formatUsd(plan.originalPrice)}
+                              </span>
+                            )}
                             {formatUsd(plan.price)}
                           </p>
+                          {isOnSale(plan) && (
+                            <p className="text-[10px] sm:text-xs font-bold text-emerald-400">{discountPercent(plan)}% OFF</p>
+                          )}
                           <p className="text-[10px] sm:text-xs text-neutral-500">one time</p>
                         </div>
                       </div>

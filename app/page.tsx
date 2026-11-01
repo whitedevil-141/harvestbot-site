@@ -25,6 +25,7 @@ import {
   Youtube
 } from 'lucide-react';
 import { ENDPOINTS, apiUrl } from '@/lib/api';
+import { PLAN_OPTIONS, discountPercent, isOnSale } from '@/lib/payment/constants';
 
 // --- DATA ---
 
@@ -65,12 +66,31 @@ const DEFAULT_GLOBAL_STATS: GlobalStats = {
   usersValue: "0",
 };
 
-const PRICING_PLANS = [
-  { id: 'weekly', name: 'Weekly', price: '$2', duration: '7 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Standard Support'], recommended: false },
-  { id: 'biweekly', name: 'Bi-Weekly', price: '$5', duration: '15 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Priority Support'], recommended: false },
-  { id: 'monthly', name: 'Monthly', price: '$8', duration: '30 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'VIP Support'], recommended: false },
-  { id: 'lifetime', name: 'Lifetime', price: '$35', duration: 'Lifetime', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Lifetime Support'], recommended: true },
-];
+// Prices come from PLAN_OPTIONS so the landing page can't drift from checkout.
+// Only the marketing-only fields live here.
+const PLAN_MARKETING: Record<string, { id: string; support: string; recommended: boolean }> = {
+  '7d': { id: 'weekly', support: 'Standard Support', recommended: false },
+  '15d': { id: 'biweekly', support: 'Priority Support', recommended: false },
+  '30d': { id: 'monthly', support: 'VIP Support', recommended: false },
+  lifetime: { id: 'lifetime', support: 'Lifetime Support', recommended: true },
+};
+
+const PRICING_PLANS = PLAN_OPTIONS.map((plan) => {
+  const marketing = PLAN_MARKETING[plan.id];
+  const onSale = isOnSale(plan);
+  return {
+    id: marketing.id,
+    name: plan.label,
+    price: `$${plan.price}`,
+    originalPrice: onSale ? `$${plan.originalPrice}` : null,
+    discount: onSale ? discountPercent(plan) : null,
+    duration: plan.id === 'lifetime' ? 'Lifetime' : `${plan.days} Days`,
+    features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', marketing.support],
+    recommended: marketing.recommended,
+  };
+});
+
+const LIFETIME_PLAN = PRICING_PLANS.find((plan) => plan.id === 'lifetime');
 
 type PricingPlan = (typeof PRICING_PLANS)[number];
 
@@ -707,7 +727,7 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
               >
                 Lifetime
                 <span className="absolute -top-3 -right-2 md:-right-4 px-2 md:px-2.5 py-0.5 bg-linear-to-r from-[#23f8ff] to-[#00c6ff] text-neutral-950 text-[9px] md:text-[10px] font-extrabold tracking-wide uppercase rounded-full shadow-[0_2px_10px_rgba(35,248,255,0.4)] border border-white/20">
-                  Save 60%
+                  {LIFETIME_PLAN?.discount ? `${LIFETIME_PLAN.discount}% OFF` : 'Save 60%'}
                 </span>
               </button>
             </div>
@@ -732,9 +752,15 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
                 <div className="mb-5 md:mb-6">
                   <h3 className="text-base md:text-lg font-bold text-white mb-2 tracking-tight">{plan.name}</h3>
                   <div className="flex items-end gap-1">
+                    {plan.originalPrice && (
+                      <span className="text-base md:text-lg text-neutral-500 mb-1 mr-1 font-semibold line-through">{plan.originalPrice}</span>
+                    )}
                     <span className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{plan.price}</span>
                     <span className="text-xs md:text-sm text-neutral-500 mb-1 font-medium">/ {plan.duration}</span>
                   </div>
+                  {plan.discount && (
+                    <p className="mt-1 text-[11px] md:text-xs font-bold text-emerald-400">{plan.discount}% OFF</p>
+                  )}
                 </div>
                 
                 <ul className="space-y-3 md:space-y-4 mb-6 md:mb-8 grow">

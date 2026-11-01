@@ -20,6 +20,8 @@ import {
   LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
+  discountPercent,
+  isOnSale,
 } from "@/lib/payment/constants";
 import {
   type StoredLicenseKey,
@@ -719,7 +721,17 @@ export default function VerifyClient() {
                             <p className="text-sm text-slate-400">{plan.days} days access</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-2xl font-semibold">{formatUsd(plan.price)}</p>
+                            <p className="text-2xl font-semibold">
+                              {isOnSale(plan) && (
+                                <span className="mr-1.5 text-sm font-medium text-slate-500 line-through">
+                                  {formatUsd(plan.originalPrice)}
+                                </span>
+                              )}
+                              {formatUsd(plan.price)}
+                            </p>
+                            {isOnSale(plan) && (
+                              <p className="text-xs font-bold text-emerald-400">{discountPercent(plan)}% OFF</p>
+                            )}
                             <p className="text-xs text-slate-500">one time</p>
                           </div>
                         </div>
