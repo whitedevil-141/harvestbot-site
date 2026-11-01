@@ -25,6 +25,7 @@ import {
   Youtube
 } from 'lucide-react';
 import { ENDPOINTS, apiUrl } from '@/lib/api';
+import { PLAN_OPTIONS, PROMO_ACTIVE, PROMO_NAME, hasPromoBonus } from '@/lib/payment/constants';
 
 // --- DATA ---
 
@@ -65,12 +66,28 @@ const DEFAULT_GLOBAL_STATS: GlobalStats = {
   usersValue: "0",
 };
 
-const PRICING_PLANS = [
-  { id: 'weekly', name: 'Weekly', price: '$2', duration: '7 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Standard Support'], recommended: false },
-  { id: 'biweekly', name: 'Bi-Weekly', price: '$5', duration: '15 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Priority Support'], recommended: false },
-  { id: 'monthly', name: 'Monthly', price: '$8', duration: '30 Days', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'VIP Support'], recommended: false },
-  { id: 'lifetime', name: 'Lifetime', price: '$35', duration: 'Lifetime', features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', 'Lifetime Support'], recommended: true },
-];
+// Prices and durations come from PLAN_OPTIONS so the landing page can't drift
+// from checkout. Only the marketing-only fields live here.
+const PLAN_MARKETING: Record<string, { id: string; support: string; recommended: boolean }> = {
+  '7d': { id: 'weekly', support: 'Standard Support', recommended: false },
+  '15d': { id: 'biweekly', support: 'Priority Support', recommended: false },
+  '30d': { id: 'monthly', support: 'VIP Support', recommended: false },
+  lifetime: { id: 'lifetime', support: 'Lifetime Support', recommended: true },
+};
+
+const PRICING_PLANS = PLAN_OPTIONS.map((plan) => {
+  const marketing = PLAN_MARKETING[plan.id];
+  return {
+    id: marketing.id,
+    name: plan.label,
+    price: `$${plan.price}`,
+    duration: plan.id === 'lifetime' ? 'Lifetime' : `${plan.days} Days`,
+    bonusLabel: hasPromoBonus(plan) ? `+${plan.bonusDays} FREE` : null,
+    breakdown: hasPromoBonus(plan) ? `${plan.baseDays} + ${plan.bonusDays} FREE` : null,
+    features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', marketing.support],
+    recommended: marketing.recommended,
+  };
+});
 
 type PricingPlan = (typeof PRICING_PLANS)[number];
 
@@ -713,6 +730,12 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
             </div>
           </div>
 
+          {PROMO_ACTIVE && billingCycle === 'subscription' && (
+            <p className="text-center -mt-4 mb-8 text-xs md:text-sm font-bold uppercase tracking-widest text-[#23f8ff]">
+              🎁 {PROMO_NAME} · Limited-Time Offer
+            </p>
+          )}
+
           <div className={`grid gap-4 md:gap-6 mx-auto transition-all duration-300 ${billingCycle === 'subscription' ? 'sm:grid-cols-2 md:grid-cols-3 max-w-5xl' : 'max-w-md'}`}>
             {PRICING_PLANS.filter(plan => billingCycle === 'subscription' ? plan.id !== 'lifetime' : plan.id === 'lifetime').map((plan, idx) => (
               <div 
@@ -729,12 +752,20 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
                     Best Value
                   </div>
                 )}
+                {plan.bonusLabel && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 md:px-4 py-1 md:py-1.5 bg-linear-to-r from-[#23f8ff] to-[#00c6ff] text-neutral-950 text-[9px] md:text-[10px] font-extrabold uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(35,248,255,0.5)] border border-white/20 whitespace-nowrap">
+                    {plan.bonusLabel}
+                  </div>
+                )}
                 <div className="mb-5 md:mb-6">
                   <h3 className="text-base md:text-lg font-bold text-white mb-2 tracking-tight">{plan.name}</h3>
                   <div className="flex items-end gap-1">
                     <span className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{plan.price}</span>
                     <span className="text-xs md:text-sm text-neutral-500 mb-1 font-medium">/ {plan.duration}</span>
                   </div>
+                  {plan.breakdown && (
+                    <p className="mt-1 text-[11px] md:text-xs font-semibold text-[#23f8ff]/80">{plan.breakdown}</p>
+                  )}
                 </div>
                 
                 <ul className="space-y-3 md:space-y-4 mb-6 md:mb-8 grow">

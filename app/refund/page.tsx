@@ -111,7 +111,7 @@ export default function RefundPolicy() {
 
           {/* 7. Account Cancellation */}
           <Section id="account-cancellation" title="7. Account Cancellation">
-            <p>Since Harvest Bot does not employ automatic recurring billing, there is no cancellation process for ongoing subscriptions. Your license will naturally expire at the end of its term (7, 15, or 30 days depending on your plan). Lifetime licenses do not expire.</p>
+            <p>Since Harvest Bot does not employ automatic recurring billing, there is no cancellation process for ongoing subscriptions. Your license will naturally expire at the end of its term (7, 15, or 30 days depending on your plan, plus any bonus days from a promotion). Lifetime licenses do not expire.</p>
             <p>To cancel the use of your license before its expiry, you may simply stop using the software. No refunds will be issued for voluntary early cancellation unless you are within the 24-hour refund window.</p>
           </Section>
 
