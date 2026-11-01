@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api";
 import { sessionFetch } from "@/lib/admin-auth";
+import { PLAN_OPTIONS } from "@/lib/payment/constants";
 import {
   Alert,
   Button,
@@ -348,7 +349,7 @@ function AddTransactionModal({ onClose, onAdded }: { onClose: () => void; onAdde
         min="0"
         value={draft.amount}
         error={errors.amount}
-        placeholder="8"
+        placeholder={String(PLAN_OPTIONS.find((plan) => plan.id === "30d")?.price ?? 6)}
         onChange={set("amount")}
       />
       <Input

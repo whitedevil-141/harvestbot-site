@@ -80,13 +80,19 @@ export function PaymentsOverview() {
           delta={
             <span
               className={`adm-nums inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${
-                metrics.growth < 0
-                  ? "border-adm-bad/25 bg-adm-bad-dim text-adm-bad"
-                  : "border-adm-good/25 bg-adm-good-dim text-adm-good"
+                metrics.growth === null || metrics.growth === 0
+                  ? "border-adm-line text-adm-mute"
+                  : metrics.growth < 0
+                    ? "border-adm-bad/25 bg-adm-bad-dim text-adm-bad"
+                    : "border-adm-good/25 bg-adm-good-dim text-adm-good"
               }`}
             >
-              <ArrowUpRight className={`h-3 w-3 ${metrics.growth < 0 ? "rotate-90" : ""}`} />
-              {metrics.growth}%
+              {metrics.growth !== null && metrics.growth !== 0 && (
+                <ArrowUpRight className={`h-3 w-3 ${metrics.growth < 0 ? "rotate-90" : ""}`} />
+              )}
+              {metrics.growth === null
+                ? "No prior data"
+                : `${metrics.growth > 0 ? "+" : ""}${metrics.growth.toFixed(1)}%`}
             </span>
           }
           hint="vs. the previous calendar month"

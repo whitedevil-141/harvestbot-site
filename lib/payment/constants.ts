@@ -77,5 +77,14 @@ export const PLAN_OPTIONS: PlanOption[] = PLAN_DEFS.map(({ salePrice, ...plan })
   price: SALE_ACTIVE ? salePrice : plan.originalPrice,
 }));
 
+/**
+ * Every price a plan has ever been sold at (regular and sale), so recorded
+ * payments can be mapped back to a plan whichever price they were paid at.
+ */
+export const PLAN_PRICE_POINTS = PLAN_DEFS.map(({ label, originalPrice, salePrice }) => ({
+  label,
+  prices: [originalPrice, salePrice],
+}));
+
 /** True when the plan is currently discounted. */
 export const isOnSale = (plan: PlanOption) => plan.price < plan.originalPrice;

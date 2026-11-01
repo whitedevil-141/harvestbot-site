@@ -268,7 +268,7 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
       "Clash of Clans farming bot that automates resource farming, wall upgrades, and base management.",
     offers: {
       "@type": "Offer",
-      price: "8",
+      price: String(PLAN_OPTIONS.find((plan) => plan.id === "30d")?.price ?? 6),
       priceCurrency: "USD",
     },
   };
