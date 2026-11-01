@@ -79,7 +79,3 @@ export const PLAN_OPTIONS: PlanOption[] = PLAN_DEFS.map(({ salePrice, ...plan })
 
 /** True when the plan is currently discounted. */
 export const isOnSale = (plan: PlanOption) => plan.price < plan.originalPrice;
-
-/** Percent off the regular price, to one decimal (e.g. 28.6). */
-export const discountPercent = (plan: PlanOption) =>
-  Math.round((1 - plan.price / plan.originalPrice) * 1000) / 10;

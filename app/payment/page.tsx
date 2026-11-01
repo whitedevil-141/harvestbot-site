@@ -25,7 +25,6 @@ import {
   LTC_PAYMENT_ENABLED,
   PLAN_OPTIONS,
   USDT_TRX_ADDRESS,
-  discountPercent,
   isOnSale,
 } from '@/lib/payment/constants';
 import {
@@ -717,9 +716,6 @@ function CheckoutContent() {
                             )}
                             {formatUsd(plan.price)}
                           </p>
-                          {isOnSale(plan) && (
-                            <p className="text-[10px] sm:text-xs font-bold text-emerald-400">{discountPercent(plan)}% OFF</p>
-                          )}
                           <p className="text-[10px] sm:text-xs text-neutral-500">one time</p>
                         </div>
                       </div>

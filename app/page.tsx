@@ -25,7 +25,7 @@ import {
   Youtube
 } from 'lucide-react';
 import { ENDPOINTS, apiUrl } from '@/lib/api';
-import { PLAN_OPTIONS, discountPercent, isOnSale } from '@/lib/payment/constants';
+import { PLAN_OPTIONS, isOnSale } from '@/lib/payment/constants';
 
 // --- DATA ---
 
@@ -83,14 +83,11 @@ const PRICING_PLANS = PLAN_OPTIONS.map((plan) => {
     name: plan.label,
     price: `$${plan.price}`,
     originalPrice: onSale ? `$${plan.originalPrice}` : null,
-    discount: onSale ? discountPercent(plan) : null,
     duration: plan.id === 'lifetime' ? 'Lifetime' : `${plan.days} Days`,
     features: ['Full Bot Access', 'All Elite Strategies', 'Smart Wall Upgrader', marketing.support],
     recommended: marketing.recommended,
   };
 });
-
-const LIFETIME_PLAN = PRICING_PLANS.find((plan) => plan.id === 'lifetime');
 
 type PricingPlan = (typeof PRICING_PLANS)[number];
 
@@ -727,7 +724,7 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
               >
                 Lifetime
                 <span className="absolute -top-3 -right-2 md:-right-4 px-2 md:px-2.5 py-0.5 bg-linear-to-r from-[#23f8ff] to-[#00c6ff] text-neutral-950 text-[9px] md:text-[10px] font-extrabold tracking-wide uppercase rounded-full shadow-[0_2px_10px_rgba(35,248,255,0.4)] border border-white/20">
-                  {LIFETIME_PLAN?.discount ? `${LIFETIME_PLAN.discount}% OFF` : 'Save 60%'}
+                  Sale
                 </span>
               </button>
             </div>
@@ -758,9 +755,6 @@ function LandingPage({ onCheckout }: { onCheckout: (plan: PricingPlan) => void }
                     <span className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{plan.price}</span>
                     <span className="text-xs md:text-sm text-neutral-500 mb-1 font-medium">/ {plan.duration}</span>
                   </div>
-                  {plan.discount && (
-                    <p className="mt-1 text-[11px] md:text-xs font-bold text-emerald-400">{plan.discount}% OFF</p>
-                  )}
                 </div>
                 
                 <ul className="space-y-3 md:space-y-4 mb-6 md:mb-8 grow">
