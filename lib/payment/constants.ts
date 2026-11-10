@@ -17,7 +17,7 @@ export type PlanOption = {
 };
 
 // Limited-time sale. Flip SALE_ACTIVE to false to restore the regular prices.
-export const SALE_ACTIVE = true;
+export const SALE_ACTIVE = false;
 
 export const BINANCE_PAY_ID = "770585563";
 export const USDT_TRX_ADDRESS = "TJ9tLX6NKF7Zub7v2S7TKnJrsyys1GZdoe";
